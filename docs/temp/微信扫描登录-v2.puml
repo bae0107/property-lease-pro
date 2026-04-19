@@ -1,0 +1,98 @@
+@startuml
+title Main-Service IAM 登录流程整合图
+
+actor User
+participant "Web / 小程序客户端" as Client
+participant "微信开放平台" as WeChat
+participant "IAM Service" as IAM
+database DB
+
+== ADMIN 用户登录 ==
+User -> Client : 输入用户名密码
+Client -> IAM : 登录请求
+IAM -> DB : 查询 Credential
+alt 密码正确
+    DB --> IAM : user_id
+    IAM -> Client : 返回 JWT
+else 密码错误
+    IAM -> Client : 登录失败
+end
+
+User -> Client : Web扫码登录
+Client -> WeChat : 请求授权
+WeChat -> User : 显示授权确认
+User -> WeChat : 确认
+WeChat -> IAM : 返回 code
+IAM -> WeChat : 换取 openid / unionid
+IAM -> DB : 查 Identity
+alt 已绑定
+    DB --> IAM : user_id
+    IAM -> Client : 返回 JWT
+else 未绑定
+    IAM -> Client : 提示绑定账号
+end
+
+== STAFF 用户登录 ==
+User -> Client : 输入用户名密码
+Client -> IAM : 登录请求
+IAM -> DB : 查询 Credential
+alt 密码正确
+    DB --> IAM : user_id
+    IAM -> Client : 返回 JWT
+else 密码错误
+    IAM -> Client : 登录失败
+end
+
+User -> Client : 微信扫码登录或小程序登录
+Client -> WeChat : 请求授权
+WeChat -> User : 显示授权确认
+User -> WeChat : 确认
+WeChat -> IAM : 返回 code
+IAM -> WeChat : 换取 openid / unionid
+IAM -> DB : 查 Identity
+alt 已绑定
+    DB --> IAM : user_id
+    IAM -> Client : 返回 JWT
+else 未绑定
+    IAM -> Client : 提示绑定账号
+end
+
+== TENANT 用户登录 ==
+User -> Client : 小程序登录
+Client -> WeChat : 请求授权
+WeChat -> User : 显示授权确认
+User -> WeChat : 确认
+WeChat -> IAM : 返回 code
+IAM -> WeChat : 换取 openid / unionid
+IAM -> DB : 查 Identity
+alt unionid 命中
+    DB --> IAM : user_id
+    IAM -> Client : 返回 JWT
+else 未命中
+    IAM -> DB : 根据手机号匹配 User
+    alt 匹配成功
+        DB --> IAM : user_id
+        IAM -> DB : 创建 Identity
+        IAM -> Client : 返回 JWT
+    else 未匹配
+        IAM -> DB : 创建 User + Identity
+        IAM -> Client : 返回 JWT
+    end
+end
+
+== TENANT Web扫码登录 ==
+User -> Client : Web扫码登录
+Client -> WeChat : 请求授权
+WeChat -> User : 显示授权确认
+User -> WeChat : 确认
+WeChat -> IAM : 返回 code
+IAM -> WeChat : 换取 openid / unionid
+IAM -> DB : 查 Identity
+alt 命中
+    DB --> IAM : user_id
+    IAM -> Client : 返回 JWT
+else 未命中
+    IAM -> Client : 登录失败\n提示去小程序登录
+end
+
+@enduml

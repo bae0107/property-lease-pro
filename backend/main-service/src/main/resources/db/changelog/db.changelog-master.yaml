@@ -1,0 +1,14 @@
+#    Liquibase 是数据库结构的唯一来源。
+#    使用 XML 格式原因：
+#    1. 内置抽象类型（BIGINT/VARCHAR/DATETIME），Liquibase 自动翻译成 H2/MySQL 方言，一份文件兼容两个数据库
+#    2. XSD 约束，IDE 有补全和实时校验
+#    3. 高级属性（runOnChange/failOnError）支持最完整
+#    本地 H2 须启用 MySQL 兼容模式：
+#  url: jdbc:h2:mem:property_lease;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+#
+#    注意：iam_permission 数据和 iam_role_permission 关联数据不在此处初始化，
+#    由应用启动时 PermissionSyncRunner 从 OpenAPI yaml 自动同步。
+
+databaseChangeLog:
+  - includeAll:
+      path: db/changelog/changes/

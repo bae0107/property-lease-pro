@@ -1,0 +1,38 @@
+# ============================================================
+#         Dockerfile.base —— 微服务通用构建镜像
+#  包含：
+#    - Eclipse Temurin JDK 17
+#    - Maven 3.9.x
+#    - Maven settings.xml（国内源可选）
+#    - 构建缓存优化
+# ============================================================
+
+FROM eclipse-temurin:17-jdk-alpine AS base
+
+# Maven version
+ARG MAVEN_VERSION=3.9.6
+ARG USER_HOME_DIR="/root"
+
+# 安装 Maven 和构建依赖（curl, tar, git）
+RUN apk update && apk add --no-cache curl tar git bash
+
+# 安装 Maven（使用 archive 源，不会 404）
+RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+    | tar -xz -C /opt/ && \
+    ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/bin/mvn
+
+# Maven 环境变量
+ENV MAVEN_HOME=/opt/apache-maven-${MAVEN_VERSION}
+ENV PATH="${MAVEN_HOME}/bin:${PATH}"
+
+# 将 Maven 下载缓存目录挂载为持久层（提升构建速度）
+VOLUME /root/.m2
+
+# 可选：替换 Maven 源（如需使用国内源可解开）
+COPY settings.xml /root/.m2/settings.xml
+
+# 默认工作目录
+WORKDIR /workspace
+
+# 输出 Maven 版本和 Java 版本（debug）
+RUN java -version && mvn -v

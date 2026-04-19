@@ -1,0 +1,44 @@
+@startuml
+title 微信扫码登录接入完整流程
+
+actor Developer as Dev
+actor User
+participant "微信开放平台" as WeChatOpen
+participant "你的 Web 或小程序应用" as App
+participant "IAM Service" as IAM
+database DB
+
+== 前置步骤：开发者配置 ==
+Dev -> WeChatOpen : 注册开放平台账号
+Dev -> WeChatOpen : 创建 Web 应用 / 小程序\n获取 AppID + AppSecret
+Dev -> App : 配置 AppID / AppSecret / 回调域名
+
+== 用户登录流程 ==
+User -> App : 打开 Web 或小程序
+App -> WeChatOpen : 请求 OAuth2 授权 (扫码 / code)
+WeChatOpen -> User : 显示授权页面
+User -> WeChatOpen : 用户确认授权
+
+WeChatOpen -> App : 返回 code
+App -> IAM : 发送 code + AppID
+IAM -> WeChatOpen : 换取 access_token
+WeChatOpen -> IAM : 返回 access_token + openid + unionid
+
+== 系统内部处理 ==
+IAM -> DB : 查询 Identity(unionid)
+alt 已存在
+    DB --> IAM : user_id
+    IAM -> App : 返回 JWT, 登录成功
+else 不存在
+    IAM -> DB : 根据手机号匹配 User（仅小程序）
+    alt 匹配成功
+        DB --> IAM : user_id
+        IAM -> DB : 创建 Identity
+        IAM -> App : 返回 JWT, 登录成功
+    else 未匹配
+        IAM -> DB : 创建 User + Identity
+        IAM -> App : 返回 JWT, 登录成功
+    end
+end
+
+@enduml

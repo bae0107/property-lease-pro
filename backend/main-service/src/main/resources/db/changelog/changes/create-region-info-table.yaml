@@ -1,0 +1,98 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-region-info-table
+      author: shibowen
+      changes:
+        - createTable:
+            tableName: region_info
+            remarks: 区域信息
+            columns:
+              - column:
+                  name: RegionId
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  remarks: 区域主键Id（业务内部）
+
+              - column:
+                  name: Province
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                  remarks: 省/直辖市名称
+
+              - column:
+                  name: City
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                  remarks: 直辖市/地级市名称
+
+              - column:
+                  name: District
+                  type: varchar(64)
+                  remarks: 行政区名称（仅直辖市有）
+
+              - column:
+                  name: RegionDes
+                  type: varchar(64)
+                  remarks: 该区域描述
+
+              - column:
+                  name: CreateUserId
+                  type: varchar(64)
+                  remarks: 创建人Id
+
+              - column:
+                  name: CreateUserName
+                  type: varchar(64)
+                  remarks: 创建人名称
+
+              - column:
+                  name: CreateTime
+                  type: varchar(64)
+                  remarks: 创建时间
+
+              - column:
+                  name: UpdateUserId
+                  type: varchar(64)
+                  remarks: 更新人Id
+
+              - column:
+                  name: UpdateUserName
+                  type: varchar(64)
+                  remarks: 更新人姓名
+
+              - column:
+                  name: UpdateTime
+                  type: varchar(64)
+                  remarks: 更新时间
+
+              - column:
+                  name: IsDeleted
+                  type: int
+                  constraints:
+                    nullable: false
+                  defaultValue: 1
+                  remarks: 删除标记(1=正常、2=删除)
+
+              - column:
+                  name: DeleteUserId
+                  type: varchar(64)
+                  remarks: 删除人Id
+
+              - column:
+                  name: DeleteUserName
+                  type: varchar(64)
+                  remarks: 删除人名称
+
+              - column:
+                  name: DeleteTime
+                  type: varchar(64)
+                  remarks: 删除时间
+
+        - rollback:
+            - dropTable:
+                tableName: region_info
+                cascadeConstraints: true

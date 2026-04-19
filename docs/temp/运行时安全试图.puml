@@ -1,0 +1,15 @@
+@startuml
+actor User
+
+User -> Gateway : User JWT
+Gateway -> Gateway : ExternalChain\nverify user-jwt
+Gateway -> Gateway : build Service JWT (+user)
+
+Gateway -> ServiceB : Service JWT
+
+ServiceB -> ServiceB : InternalChain\nverify service-jwt
+ServiceB -> ServiceB : build SecurityPrincipal
+
+ServiceB -> ServiceC : Service JWT (+user)
+ServiceC -> ServiceC : InternalChain
+@enduml

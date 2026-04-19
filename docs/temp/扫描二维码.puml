@@ -1,0 +1,46 @@
+@startuml
+title 微信扫码登录二维码完整流程
+
+actor User
+participant "Web 客户端" as Client
+participant "IAM Service" as IAM
+participant "二维码生成模块" as QRGen
+participant "微信开放平台" as WeChat
+database DB
+
+== 系统生成二维码 ==
+Client -> IAM : 请求扫码登录
+IAM -> QRGen : 生成二维码内容\n(微信授权URL)
+QRGen -> Client : 返回二维码图片
+Client -> User : 展示二维码
+
+== 用户扫码 ==
+User -> Client : 使用微信扫描二维码
+Client -> WeChat : 微信扫描二维码 → 打开URL
+WeChat -> User : 显示授权确认
+User -> WeChat : 用户确认授权
+
+== 微信回调系统 ==
+WeChat -> IAM : 回调 redirect_uri?code=XXX&state=YYY
+IAM -> IAM : 校验 state 是否有效
+IAM -> WeChat : 使用 code 换取 access_token + openid + unionid
+WeChat -> IAM : 返回 access_token + openid + unionid
+
+== 系统处理登录 ==
+IAM -> DB : 查询 Identity(unionid)
+alt Identity 已存在
+    DB --> IAM : user_id
+    IAM -> Client : 返回 JWT, 登录成功
+else Identity 不存在
+    IAM -> DB : 根据手机号匹配 User (仅小程序)
+    alt 匹配成功
+        DB --> IAM : user_id
+        IAM -> DB : 创建 Identity
+        IAM -> Client : 返回 JWT, 登录成功
+    else 未匹配
+        IAM -> DB : 创建新 User + Identity
+        IAM -> Client : 返回 JWT, 登录成功
+    end
+end
+
+@enduml

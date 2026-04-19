@@ -1,0 +1,95 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-third-party-service-temp-table
+      author: shibowen
+      changes:
+        - createTable:
+            tableName: third_party_service_temp
+            remarks: 第三方回调服务同步表
+            columns:
+              - column:
+                  name: Id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  remarks: 服务主键（业务内部）
+
+              - column:
+                  name: ServiceId
+                  type: varchar(255)
+                  remarks: 服务回调ID
+
+              - column:
+                  name: DeviceId
+                  type: varchar(255)
+                  remarks: 第三方唯一标识码
+
+              - column:
+                  name: ProviderOp
+                  type: int
+                  remarks: 服务商识别1为云丁2为合一
+
+              - column:
+                  name: DeviceType
+                  type: int
+                  remarks: 1为电2为水3为锁
+
+              - column:
+                  name: ServiceType
+                  type: int
+                  remarks: 电的话1为开2为关等等
+
+              - column:
+                  name: ServiceNote
+                  type: varchar(100)
+                  remarks: 第三方提供的事件名或备注
+
+              - column:
+                  name: ServiceSTTime
+                  type: varchar(64)
+                  remarks: 服务创建时间（秒级日期）
+
+              - column:
+                  name: ServiceEDTime
+                  type: varchar(64)
+                  remarks: 服务响应时间（秒级日期）
+
+              - column:
+                  name: ServiceResult
+                  type: int
+                  remarks: 1为成功2为失败
+
+              - column:
+                  name: ServiceError
+                  type: varchar(255)
+                  remarks: 失败时记录失败原因
+
+        - rollback:
+            - dropTable:
+                tableName: third_party_service_temp
+                cascadeConstraints: true
+
+  - changeSet:
+      id: add-composite-unique-service
+      author: shibowen
+      changes:
+        - addUniqueConstraint:
+            tableName: third_party_service_temp
+            columnNames: ProviderOp, ServiceId
+            constraintName: provider_service_composite
+            comment: 确保同一供应商服务号的唯一
+
+  - changeSet:
+      id: add-additional-info-colume
+      author: shibowen
+      changes:
+        - addColumn:
+            tableName: third_party_service_temp
+            columns:
+              - column:
+                  name: AdditionalInfo
+                  type: varchar(255)
+                  constraints:
+                    nullable: true

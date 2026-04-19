@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <!-- ═══════════════════════════════════════════
+       iam_user
+       用户表（认证与业务的核心实体）
+       ─────────────────────────────────────────
+       设计说明：
+         - id 当前使用 AUTO_INCREMENT，未来可通过 jOOQ ExecuteListener 无侵入切换为雪花算法
+         - user_type 表示用户所属身份域，用于角色分配约束
+           枚举值：STAFF / TENANT / CONTRACTOR / SYSTEM ，同时决定用户的能力矩阵（比如登录方式、是否需要数据权限等？）
+         - source_type 表示对象来源：BUILTIN / CUSTOM
+           BUILTIN 用于内置用户（如 admin、system），CUSTOM 用于后续创建用户
+         - source 保留原有“创建渠道/接入来源”语义，枚举值：MANUAL / WECHAT / 业务系统标识（如 BILLING_SYSTEM）
+         - user_name 为登录用户名，必填，全局唯一
+         - real_name / email 选填，email 全局唯一
+         - mobile 统一为必填字段，全局唯一
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-user" author="peiyong">
+    <createTable tableName="iam_user" remarks="IAM 用户表">
+      <column name="id" type="BIGINT" autoIncrement="true"
+        remarks="用户 ID（当前自增，可通过 jOOQ ExecuteListener 切换雪花算法，对业务透明）">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="user_type" type="VARCHAR(20)"
+        remarks="用户类型：STAFF / TENANT / CONTRACTOR / SYSTEM">
+        <constraints nullable="false"/>
+      </column>
+      <column name="source_type" type="VARCHAR(20)" defaultValue="CUSTOM"
+        remarks="对象来源：BUILTIN（内置）/ CUSTOM（自定义）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+        remarks="账号状态：ACTIVE / INACTIVE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="user_name" type="VARCHAR(100)"
+        remarks="登录用户名，对应 OpenAPI username，必填，全局唯一">
+        <constraints nullable="false"/>
+      </column>
+      <column name="real_name" type="VARCHAR(100)"
+        remarks="真实姓名，选填"/>
+      <column name="mobile" type="VARCHAR(20)"
+        remarks="手机号，必填，全局唯一">
+        <constraints nullable="false"/>
+      </column>
+      <column name="email" type="VARCHAR(200)"
+        remarks="邮箱，选填，全局唯一"/>
+      <column name="source" type="VARCHAR(50)"
+        remarks="创建渠道/接入来源：MANUAL（手动）/ WECHAT（微信自动匹配）/ 业务系统标识（如 BILLING_SYSTEM）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_by" type="BIGINT"
+        remarks="创建者 user_id，Liquibase 初始化内置用户时为 NULL"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="iam_user" columnNames="user_name"
+      constraintName="uk_iam_user_user_name"/>
+    <addUniqueConstraint tableName="iam_user" columnNames="mobile"
+      constraintName="uk_iam_user_mobile"/>
+    <addUniqueConstraint tableName="iam_user" columnNames="email"
+      constraintName="uk_iam_user_email"/>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       iam_identity
+       登录身份表（每种登录方式一条记录）
+       ─────────────────────────────────────────
+       设计说明：
+         - provider=password 时，provider_user_id 存 user_name（与 iam_user.user_name 保持一致）
+         - provider=wechat   时，provider_user_id 存 openid，union_id 存 unionid
+         - union_id 唯一性由业务层保证（MySQL UNIQUE 对多 NULL 不生效）
+         - 首次微信登录 = 手机号匹配用户 → 写入此表 → 后续凭 Identity 直接登录
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-identity" author="peiyong">
+    <createTable tableName="iam_identity" remarks="登录身份表，每种登录方式一条记录">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="user_id" type="BIGINT" remarks="关联 iam_user.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="provider" type="VARCHAR(20)"
+        remarks="登录提供方：password / wechat">
+        <constraints nullable="false"/>
+      </column>
+      <column name="provider_user_id" type="VARCHAR(100)"
+        remarks="提供方用户标识：password→user_name；wechat→openid">
+        <constraints nullable="false"/>
+      </column>
+      <column name="union_id" type="VARCHAR(100)"
+        remarks="微信 unionid，跨小程序/公众号唯一；唯一性由业务层保证"/>
+      <column name="app_id" type="VARCHAR(100)"
+        remarks="来源 appId，区分小程序/Web 端"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="iam_identity"
+      columnNames="provider, provider_user_id"
+      constraintName="uk_iam_identity_provider_puid"/>
+    <createIndex tableName="iam_identity" indexName="idx_iam_identity_user_id">
+      <column name="user_id"/>
+    </createIndex>
+    <createIndex tableName="iam_identity" indexName="idx_iam_identity_union_id">
+      <column name="union_id"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       iam_credential
+       密码凭证表（1:1 iam_user）
+       ─────────────────────────────────────────
+       设计说明：
+         - 当前仅 STAFF 使用密码凭证
+         - TENANT / SYSTEM 当前不使用本表
+         - CONTRACTOR 是否使用密码登录当前待定，后续确认后再决定是否复用本表
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-credential" author="peiyong">
+    <createTable tableName="iam_credential"
+      remarks="密码凭证表，1:1 关联 iam_user，当前仅 STAFF 使用">
+      <column name="user_id" type="BIGINT" remarks="同时作为 PK，1:1 关联 iam_user">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="password_hash" type="VARCHAR(255)"
+        remarks="BCrypt 哈希值，强度 10（$2a$10$...）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       iam_role
+       角色表
+       ─────────────────────────────────────────
+       设计说明：
+         - role_type 表示角色所属授权域：STAFF / TENANT / CONTRACTOR / SYSTEM
+         - source_type 表示角色来源：BUILTIN（内置）/ CUSTOM（自定义）
+         - required_data_scope_dimension 表示绑定该角色到用户时，要求用户按哪个维度配置数据权限
+           AREA→按区域维度绑定，STORE→按门店维度绑定，NULL→该角色不要求数据权限
+         - BUILTIN 角色的权限列表固定，不允许通过管理 API 修改
+         - CUSTOM 角色由管理员创建，其权限列表可通过管理 API 维护
+         - code：大写下划线，全局唯一，创建后不可修改
+         - 角色只承载功能权限；required_data_scope_dimension 仅用于约束用户绑定数据权限时的维度选择，不表示角色拥有数据权限
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-role" author="peiyong">
+    <createTable tableName="iam_role" remarks="角色表">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="name" type="VARCHAR(50)" remarks="角色显示名称">
+        <constraints nullable="false"/>
+      </column>
+      <column name="code" type="VARCHAR(50)"
+        remarks="角色业务编码，大写下划线，全局唯一，创建后不可修改">
+        <constraints nullable="false"/>
+      </column>
+      <column name="role_type" type="VARCHAR(20)"
+        remarks="角色分类：STAFF / TENANT / CONTRACTOR / SYSTEM">
+        <constraints nullable="false"/>
+      </column>
+      <column name="source_type" type="VARCHAR(20)" defaultValue="CUSTOM"
+        remarks="对象来源：BUILTIN（内置）/ CUSTOM（自定义）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="required_data_scope_dimension" type="VARCHAR(20)"
+        remarks="绑定该角色到用户时要求的数据权限维度：AREA（区域）/ STORE（门店）/ NULL（不要求数据权限）"/>
+      <column name="description" type="VARCHAR(200)"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="iam_role" columnNames="code"
+      constraintName="uk_iam_role_code"/>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       iam_permission
+       权限表
+       ─────────────────────────────────────────
+       设计说明：
+         - 数据由 PermissionSyncRunner 从 OpenAPI yaml 的 x-required-permission 自动同步
+         - Liquibase 只建表结构，不插入任何权限数据
+         - deleted_at 软删除：yaml 中移除的权限不物理删除，
+           保留历史记录（存量 role_permission 不受影响）
+         - code 格式：{resource}:{action}，全小写（如 iam:user:read）
+         - resource = code 中最后一个冒号前的部分（如 iam:user）
+         - action  = code 中最后一个冒号后的部分（如 read）
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-permission" author="peiyong">
+    <createTable tableName="iam_permission"
+      remarks="权限表，由 PermissionSyncRunner 从 OpenAPI yaml 自动维护，Liquibase 只建结构">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="code" type="VARCHAR(100)"
+        remarks="权限码，格式 {resource}:{action}（全小写），对应 yaml 的 x-required-permission 值">
+        <constraints nullable="false"/>
+      </column>
+      <column name="name" type="VARCHAR(100)"
+        remarks="显示名称，初始值由 PermissionSyncRunner 设为 code，可手动更新">
+        <constraints nullable="false"/>
+      </column>
+      <column name="resource" type="VARCHAR(100)"
+        remarks="资源标识，code 最后一个冒号前的部分（如 iam:user:read → iam:user）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action" type="VARCHAR(50)"
+        remarks="操作标识，code 最后一个冒号后的部分（如 iam:user:read → read）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="description" type="VARCHAR(200)"/>
+      <column name="deleted_at" type="DATETIME(3)"
+        remarks="软删除时间：NULL=有效；yaml 中移除对应 code 时由 PermissionSyncRunner 设置"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="iam_permission" columnNames="code"
+      constraintName="uk_iam_permission_code"/>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       iam_user_role
+       用户-角色 M:N 关联表
+       ─────────────────────────────────────────
+       设计说明：
+         - 用户绑定角色时，需由业务层根据 user_type 与 role_type 做强约束校验
+         - 例如：STAFF 只能绑定 STAFF 类角色，TENANT 只能绑定 TENANT 类角色
+         - 如角色配置了 required_data_scope_dimension，则绑定该角色时还需按指定维度同步配置用户数据权限
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-user-role" author="peiyong">
+    <createTable tableName="iam_user_role" remarks="用户-角色 M:N 关联表">
+      <column name="user_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="role_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addPrimaryKey tableName="iam_user_role" columnNames="user_id, role_id"
+      constraintName="pk_iam_user_role"/>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       iam_role_permission
+       角色-权限 M:N 关联表
+       ─────────────────────────────────────────
+       设计说明：
+         - BUILTIN 角色的权限关联由 PermissionSyncRunner / 初始化逻辑维护
+         - CUSTOM 角色的权限关联通过 PUT /iam/roles/{id}/permissions 管理
+         - 角色仅绑定功能权限，不承担任何数据权限语义
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-role-permission" author="peiyong">
+    <createTable tableName="iam_role_permission" remarks="角色-权限 M:N 关联表">
+      <column name="role_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="permission_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addPrimaryKey tableName="iam_role_permission" columnNames="role_id, permission_id"
+      constraintName="pk_iam_role_permission"/>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       iam_user_data_scope
+       用户数据权限范围表
+       ─────────────────────────────────────────
+       设计说明：
+         - 数据权限统一绑定到用户，不绑定到角色
+         - 适用于需要区域 / 门店数据范围控制的用户
+         - ROLE_ADMIN 不做代码特判，也走统一数据权限模型；初始化时赋予全量范围
+         - 内置用户 admin / system 的数据权限默认初始化为 ALL
+         - scope_dimension：AREA（区域）/ STORE（门店）
+           层级：区域 > 门店，一个区域下有多个门店
+         - scope_type=ALL：全部资源，新增区域/门店后自动生效，resource_id 为 NULL
+         - scope_type=SPECIFIC：指定具体资源，每条记录对应一个 resource_id
+         - 覆写逻辑：PUT 时先按 user_id+scope_dimension DELETE，再 INSERT 新记录
+         - resource_id 存储 area_id 或 store_id（来自 main-service 其他模块，IAM 只存 id）
+       ═══════════════════════════════════════════ -->
+  <changeSet id="001-iam-user-data-scope" author="peiyong">
+    <createTable tableName="iam_user_data_scope"
+      remarks="用户数据权限范围表，数据权限统一绑定到用户">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="user_id" type="BIGINT" remarks="关联 iam_user.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="scope_dimension" type="VARCHAR(20)"
+        remarks="数据权限维度：AREA（区域）/ STORE（门店）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="scope_type" type="VARCHAR(20)"
+        remarks="范围类型：ALL（全部，新增资源自动生效）/ SPECIFIC（指定具体资源）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="resource_id" type="BIGINT"
+        remarks="资源 ID（area_id 或 store_id），scope_type=SPECIFIC 时必填，ALL 时为 NULL"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="iam_user_data_scope"
+      indexName="idx_iam_user_data_scope_user_id">
+      <column name="user_id"/>
+    </createIndex>
+    <createIndex tableName="iam_user_data_scope"
+      indexName="idx_iam_user_data_scope_user_dim">
+      <column name="user_id"/>
+      <column name="scope_dimension"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

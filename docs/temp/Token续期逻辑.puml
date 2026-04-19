@@ -1,0 +1,45 @@
+@startuml
+title Refresh Token 续期流程
+start
+
+:客户端提交 Refresh Token;
+
+partition "验证流程" {
+  :查询数据库中的 token_hash;
+
+  if (Token 不存在？) then (是)
+    :返回 401 AUTH_REFRESH_TOKEN_NOT_FOUND;
+    stop
+  else (否)
+    if (Token 已过期？) then (是)
+      :返回 401 AUTH_REFRESH_TOKEN_EXPIRED;
+      stop
+    else (否)
+      if (Token 已撤销？) then (是)
+        :返回 401 AUTH_REFRESH_TOKEN_REVOKED;
+        stop
+      else (否)
+        :验证通过;
+      endif
+    endif
+  endif
+}
+
+partition "生成新 Token" {
+  :从 DB 查询用户最新权限;
+  :生成新 Access Token (30min);
+
+  if (启用轮转策略？) then (是)
+    :生成新 Refresh Token (7d);
+    :旧 Token 标记为撤销;
+    :保存新 Token 哈希到 DB;
+  else (否)
+    :复用旧 Refresh Token;
+  endif
+}
+
+:返回 {accessToken, refreshToken};
+
+stop
+
+@enduml

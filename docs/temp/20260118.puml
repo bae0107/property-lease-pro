@@ -1,0 +1,37 @@
+@startuml
+actor User
+participant "Service A" as A
+participant "IAM Service" as IAM
+participant "Service B" as B
+
+== 用户触发 ==
+
+User -> A : 请求 external/** API\n携带 user-token
+
+== Service A 生成 internal-user-token ==
+
+A -> IAM : 请求 internal token\n传递 UserPrincipal context
+IAM -> IAM : 校验调用上下文\n只能签发 internal-user-token
+IAM --> A : 返回 internal-user-token
+
+== Service A 调用 Service B internal/user/** ==
+
+A -> B : 请求 internal/user/**\n携带 internal-user-token
+B -> B : Security runtime解析 token\n生成 InternalUserPrincipal
+B -> B : 校验 token type 与上下文匹配
+B -> B : 应用数据权限过滤
+B --> A : 返回响应
+
+== System token 场景（后台系统调用） ==
+
+A -> IAM : 请求 system-token\n调用上下文无 UserPrincipal
+IAM -> IAM : 校验调用服务身份\n允许签发 system-token
+IAM --> A : 返回 system-token
+
+A -> B : 请求 internal/system/**\n携带 system-token
+B -> B : Security runtime解析 token\n生成 SystemPrincipal
+B -> B : 校验 token type 与上下文匹配
+B -> B : 应用系统级权限
+B --> A : 返回响应
+
+@enduml

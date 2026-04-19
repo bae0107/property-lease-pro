@@ -1,0 +1,43 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+server:
+  port: 8080
+
+# dev：下游服务由 docker compose 拉起并映射端口到宿主机，gateway 在 IDEA 本地运行（GW-1.4）
+gateway:
+  routes:
+    main-service:
+      url: http://localhost:8081
+    billing-service:
+      url: http://localhost:8082
+    device-service:
+      url: http://localhost:8083
+
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+
+  rate-limit:
+    enabled: true
+
+# security-starter 配置（security.mode=gateway）
+security:
+  mode: gateway
+  service-name: gateway
+  permit-paths:
+    - /api/main-service/auth/login
+  jwt:
+    user:
+      secret: dev-user-jwt-secret-for-development-only
+      expiration: 1800
+    service:
+      secret: dev-service-jwt-secret-for-development-only
+      expiration: 300
+
+logging:
+  level:
+    root: INFO
+    com.jugu.propertylease.gateway: INFO

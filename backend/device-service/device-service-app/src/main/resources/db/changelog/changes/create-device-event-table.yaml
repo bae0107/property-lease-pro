@@ -1,0 +1,70 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-device-event-table
+      author: shibowen
+      changes:
+        - createTable:
+            tableName: device_event_info
+            remarks: 硬件设备事件通知记录
+            defaultCharset: utf8mb4
+            columns:
+              - column:
+                  name: Id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  remarks: 服务主键（业务内部）
+
+              - column:
+                  name: DeviceKey
+                  type: varchar(255)
+                  remarks: 业务内部设备主键ID
+
+              - column:
+                  name: ProviderOp
+                  type: int
+                  remarks: 服务商识别1为云丁2为合一
+
+              - column:
+                  name: DeviceType
+                  type: int
+                  remarks: 1为电2为水3为锁
+
+              - column:
+                  name: EventName
+                  type: varchar(255)
+                  remarks: 事件名称
+
+              - column:
+                  name: EventInfo
+                  type: varchar(255)
+                  remarks: 事件描述
+
+              - column:
+                  name: HasRead
+                  type: int
+                  constraints:
+                    nullable: false
+                  defaultValue: 1
+                  remarks: 是否已读，1为未读，2为已读
+
+              - column:
+                  name: EventTime
+                  type: varchar(64)
+                  remarks: 通知时间
+
+        - rollback:
+            - dropTable:
+                tableName: third_party_service_temp
+                cascadeConstraints: true
+
+  - changeSet:
+      id: change-device-key-type
+      author: shibowen
+      changes:
+        - modifyDataType:
+            tableName: device_event_info
+            columnName: DeviceKey
+            newDataType: BIGINT

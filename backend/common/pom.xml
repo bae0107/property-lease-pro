@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+  <artifactId>common</artifactId>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <configuration combine.self="override">
+              <configOptions>
+                <annotationLibrary>none</annotationLibrary>
+
+                <!-- JSON.java 会生成到这个包；你当前报错缺的就是 com.jugu.propertylease.common.JSON -->
+                <dateLibrary>java8</dateLibrary>
+                <documentationProvider>none</documentationProvider>
+
+                <!-- 关键：强制走支持 Jackson 的 java library -->
+                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                <invokerPackage>com.jugu.propertylease.common</invokerPackage>
+
+                <!-- 避免继承父 pom 里 springdoc 等 server 侧参数 -->
+                <library>resttemplate</library>
+                <modelPackage>com.jugu.propertylease.common.model</modelPackage>
+
+                <!-- 建议用 java8 表示 JSR-310 时间类型；这是 java generator 官方支持项 -->
+                <openApiNullable>false</openApiNullable>
+                <serializationLibrary>jackson</serializationLibrary>
+                <sourceFolder>src/main/java</sourceFolder>
+                <useJakartaEe>true</useJakartaEe>
+              </configOptions>
+              <generateApiDocumentation>false</generateApiDocumentation>
+              <generateApiTests>false</generateApiTests>
+
+              <generateApis>false</generateApis>
+              <generateModelDocumentation>false</generateModelDocumentation>
+
+              <!-- 关键：只补 JSON.java，不生成整套 client supporting files -->
+              <generateModelTests>false</generateModelTests>
+              <generateModels>true</generateModels>
+
+              <generateSupportingFiles>true</generateSupportingFiles>
+              <generatorName>java</generatorName>
+              <inputSpec>${project.basedir}/src/main/resources/openapi/common-components.yaml
+              </inputSpec>
+              <output>${project.build.directory}/generated-sources/openapi</output>
+
+              <supportingFilesToGenerate>JSON.java</supportingFilesToGenerate>
+            </configuration>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <id>default</id>
+          </execution>
+        </executions>
+        <groupId>org.openapitools</groupId>
+        <version>7.17.0</version>
+      </plugin>
+    </plugins>
+  </build>
+
+  <dependencies>
+    <!--  ===== Core AutoConfigure =====  -->
+    <dependency>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <groupId>org.springframework.boot</groupId>
+    </dependency>
+    <!--  ===== Jackson =====  -->
+    <dependency>
+      <artifactId>jackson-databind</artifactId>
+      <groupId>com.fasterxml.jackson.core</groupId>
+    </dependency>
+    <!--  ===== Spring Web MVC (optional: servlet microservices only) =====  -->
+    <dependency>
+      <artifactId>spring-webmvc</artifactId>
+      <groupId>org.springframework</groupId>
+      <optional>true</optional>
+    </dependency>
+    <!--  ===== Servlet API =====  -->
+    <dependency>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <groupId>jakarta.servlet</groupId>
+      <scope>provided</scope>
+    </dependency>
+    <!--  ===== Spring Cloud OpenFeign (optional: only for Feign clients) =====  -->
+    <dependency>
+      <artifactId>spring-cloud-starter-openfeign</artifactId>
+      <groupId>org.springframework.cloud</groupId>
+      <optional>true</optional>
+    </dependency>
+    <!--  ===== AOP (optional: required for FeignExceptionAspect) =====  -->
+    <dependency>
+      <artifactId>spring-boot-starter-aop</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <optional>true</optional>
+    </dependency>
+    <!--  ===== Validation =====  -->
+    <dependency>
+      <artifactId>spring-boot-starter-validation</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <optional>true</optional>
+    </dependency>
+    <!--  ===== MDC (SLF4J, always available) =====  -->
+    <dependency>
+      <artifactId>slf4j-api</artifactId>
+      <groupId>org.slf4j</groupId>
+    </dependency>
+    <!--  ===== Test =====  -->
+    <dependency>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>gson</artifactId>
+      <groupId>com.google.code.gson</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>jakarta.annotation-api</artifactId>
+      <groupId>jakarta.annotation</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>spring-context</artifactId>
+      <groupId>org.springframework</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>jackson-annotations</artifactId>
+      <groupId>com.fasterxml.jackson.core</groupId>
+    </dependency>
+
+
+    <dependency>
+      <artifactId>jsr305</artifactId>
+      <groupId>com.google.code.findbugs</groupId>
+      <version>3.0.2</version>
+    </dependency>
+    <dependency>
+      <artifactId>jooq</artifactId>
+      <groupId>org.jooq</groupId>
+      <version>${jooq.version}</version>
+    </dependency>
+
+  </dependencies>
+  <description>Shared DTOs, Enums, Exceptions, API Contracts</description>
+
+  <modelVersion>4.0.0</modelVersion>
+  <name>common</name>
+
+  <packaging>jar</packaging>
+
+  <!--    <properties>-->
+  <!--        <apiPackage.name>com.jugu.propertylease.common.api</apiPackage.name>-->
+  <!--    </properties>-->
+
+  <parent>
+    <artifactId>starter-parent</artifactId>
+    <groupId>com.jugu.propertylease</groupId>
+    <relativePath>../starters/starter-parent/pom.xml</relativePath>
+    <version>1.0.0</version>
+  </parent>
+
+</project>

@@ -1,0 +1,121 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-billing-record-info-table
+      author: shibowen
+      changes:
+        - createTable:
+            tableName: billing_record_info
+            remarks: 账单充值信息记录表
+            columns:
+              - column:
+                  name: BillingId
+                  type: varchar(255)
+                  constraints:
+                    primaryKey: true
+                  remarks: 充值账单主键
+
+              - column:
+                  name: AmountCent
+                  type: int
+                  remarks: 充值金额(分)
+
+              - column:
+                  name: BillingStatus
+                  type: varchar(100)
+                  remarks: 账单状态
+
+              - column:
+                  name: PayMethod
+                  type: varchar(100)
+                  remarks: 支付方式
+
+              - column:
+                  name: BillingType
+                  type: varchar(100)
+                  remarks: 账单类型
+
+              - column:
+                  name: CreateUserId
+                  type: VARCHAR(64)
+                  remarks: 创建人
+
+              - column:
+                  name: CreateUserName
+                  type: VARCHAR(64)
+                  remarks: 创建人名称
+
+              - column:
+                  name: CreateTime
+                  type: VARCHAR(64)
+                  remarks: 创建时间
+
+              - column:
+                  name: UpdateTime
+                  type: VARCHAR(64)
+                  remarks: 更新时间
+
+              - column:
+                  name: CompleteTime
+                  type: VARCHAR(64)
+                  remarks: 完成时间
+
+        - rollback:
+            - dropTable:
+                tableName: billing_record_info
+                cascadeConstraints: true
+
+  - changeSet:
+      id: add-error-info-colume
+      author: shibowen
+      changes:
+        - addColumn:
+            tableName: billing_record_info
+            columns:
+              - column:
+                  name: ErrorInfo
+                  type: varchar(255)
+                  remarks: 错误信息
+                  constraints:
+                    nullable: true
+
+  - changeSet:
+      id: add-root-index-colume
+      author: shibowen
+      changes:
+        - addColumn:
+            tableName: billing_record_info
+            columns:
+              - column:
+                  name: RootIndex
+                  type: int
+                  remarks: 指向支付拉起的使用参数
+                  constraints:
+                    nullable: true
+
+  - changeSet:
+      id: add-expire-time-colume
+      author: shibowen
+      changes:
+        - addColumn:
+            tableName: billing_record_info
+            columns:
+              - column:
+                  name: ExpireTime
+                  type: varchar(255)
+                  remarks: 订单支付过期时间
+                  constraints:
+                    nullable: true
+
+  - changeSet:
+      id: add-pay-info-colume
+      author: shibowen
+      changes:
+        - addColumn:
+            tableName: billing_record_info
+            columns:
+              - column:
+                  name: PayInfo
+                  type: varchar(255)
+                  remarks: 订单支付信息
+                  constraints:
+                    nullable: true

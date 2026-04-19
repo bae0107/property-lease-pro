@@ -1,0 +1,93 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-building-info-table
+      author: shibowen
+      changes:
+        - createTable:
+            tableName: building_info
+            remarks: 楼栋信息
+            columns:
+              - column:
+                  name: BuildingId
+                  type: varchar(30)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  remarks: 楼栋主键Id（业务内部）
+
+              - column:
+                  name: StoreId
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                  remarks: 绑定门店ID
+
+              - column:
+                  name: BuildingName
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                  remarks: 楼栋名称
+
+              - column:
+                  name: Floors
+                  type: JSON
+                  remarks: 楼层信息
+
+              - column:
+                  name: CreateUserId
+                  type: varchar(64)
+                  remarks: 创建人Id
+
+              - column:
+                  name: CreateUserName
+                  type: varchar(64)
+                  remarks: 创建人名称
+
+              - column:
+                  name: CreateTime
+                  type: varchar(64)
+                  remarks: 创建时间
+
+              - column:
+                  name: UpdateUserId
+                  type: varchar(64)
+                  remarks: 更新人Id
+
+              - column:
+                  name: UpdateUserName
+                  type: varchar(64)
+                  remarks: 更新人姓名
+
+              - column:
+                  name: UpdateTime
+                  type: varchar(64)
+                  remarks: 更新时间
+
+              - column:
+                  name: IsDeleted
+                  type: int
+                  constraints:
+                    nullable: false
+                  defaultValue: 1
+                  remarks: 删除标记(1=正常、2=删除)
+
+              - column:
+                  name: DeleteUserId
+                  type: varchar(64)
+                  remarks: 删除人Id
+
+              - column:
+                  name: DeleteUserName
+                  type: varchar(64)
+                  remarks: 删除人名称
+
+              - column:
+                  name: DeleteTime
+                  type: varchar(64)
+                  remarks: 删除时间
+
+        - rollback:
+            - dropTable:
+                tableName: building_info
+                cascadeConstraints: true

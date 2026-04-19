@@ -1,0 +1,45 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+server:
+  port: 8080
+
+# prod：全部容器化，使用 docker compose 内部 DNS，容器名即服务名（GW-1.4）
+gateway:
+  routes:
+    main-service:
+      url: http://main-service:8081
+    billing-service:
+      url: http://billing-service:8082
+    device-service:
+      url: http://device-service:8083
+
+  cors:
+    allowed-origins:
+      # 生产前端域名待补充（GW-Q-6）
+      - https://todo.example.com
+
+  rate-limit:
+    enabled: true
+
+# security-starter 配置（security.mode=gateway）
+# prod 环境密钥必须通过环境变量注入，禁止写入代码仓库
+security:
+  mode: gateway
+  service-name: gateway
+  permit-paths:
+    - /api/main-service/auth/login
+  jwt:
+    user:
+      secret: ${JWT_USER_SECRET}
+      expiration: 1800
+    service:
+      secret: ${JWT_SERVICE_SECRET}
+      expiration: 300
+
+logging:
+  level:
+    root: WARN
+    com.jugu.propertylease.gateway: INFO

@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: gateway
+
+  # Spring Cloud Gateway 超时通用配置（GW-3.6）
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 3000    # 连接超时 3s（毫秒）
+        response-timeout: 10s    # 响应超时 10s
+
+# Actuator 独立管理端口（GW-6），所有环境一致
+management:
+  server:
+    port: 8090
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+# Gateway 默认配置（各环境通过对应 profile 覆盖）
+gateway:
+  security:
+    strip-request-headers:
+      - X-Service-Token    # 防止外部伪造内部凭证（GW-C-05）
+    strip-response-headers: [ ]
+
+  cors:
+    allowed-origins:
+      - http://localhost:3000    # 各环境 profile 覆盖
+
+  rate-limit:
+    enabled: true
+    capacity: 100                # 令牌桶容量（最大突发请求数）
+    refill-rate: 20              # 每秒补充令牌数（稳态 20 req/s/IP）
+    key-resolver: ip

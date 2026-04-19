@@ -1,0 +1,210 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-electronic-meter-info-table
+      author: shibowen
+      changes:
+        - createTable:
+            tableName: electronic-meter_info
+            remarks: 电表信息
+            columns:
+              - column:
+                  name: Id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  remarks: 电表主键Id（业务内部）
+
+              - column:
+                  name: InstallType
+                  type: int
+                  remarks: 安装类型(1=独立表、2=公摊表)
+
+              - column:
+                  name: MeterNo
+                  type: varchar(64)
+                  remarks: 表号（第三方）
+
+              - column:
+                  name: BoundRoomId
+                  type: varchar(255)
+                  remarks: 绑定的房源的编号，空为无绑定
+
+              - column:
+                  name: BoundTimeChange
+                  type: varchar(64)
+                  remarks: 绑定、换绑、解绑时间
+
+              - column:
+                  name: ConsumeAmount
+                  type: double(11,2)
+                  defaultValue: 0.00
+                  remarks: 当前读数（第三方）
+
+              - column:
+                  name: ConsumeRecordTime
+                  type: varchar(64)
+                  remarks: 读数时间（第三方提供）
+
+              - column:
+                  name: PeriodConsumeStartTime
+                  type: varchar(64)
+                  remarks: 计费周期开始的读数时间（第三方提供）
+
+              - column:
+                  name: PeriodConsumeAmount
+                  type: double(11,2)
+                  defaultValue: 0.00
+                  remarks: 计费周期开始的读数（第三方提供）
+
+              - column:
+                  name: switchStatus
+                  type: int
+                  remarks: 电表闸门状态（1为关闭、2为打开、3为关闭中、4为打开中、-1为异常）
+
+              - column:
+                  name: enableStateTime
+                  type: varchar(64)
+                  remarks: 闸门当前状态的修改时间（第三方提供）
+
+              - column:
+                  name: LastCommTime
+                  type: varchar(64)
+                  remarks: 最后通讯时间
+
+              - column:
+                  name: Status
+                  type: int
+                  remarks: 状态(1=未安装、2=离线、3=在线)
+
+              - column:
+                  name: StatusTime
+                  type: varchar(64)
+                  remarks: 状态(1=未安装、2=离线、3=在线) 更新时间
+
+              - column:
+                  name: DeviceId
+                  type: varchar(255)
+                  remarks: 第三方内部id（第三方接口查询用）
+
+              - column:
+                  name: DeviceModelId
+                  type: varchar(64)
+                  remarks: 字典表id：设备型号ID
+
+              - column:
+                  name: ProviderName
+                  type: varchar(225)
+                  remarks: 第三方服务商名称（云丁、合一等）
+
+              - column:
+                  name: ProviderOp
+                  type: int
+                  remarks: 第三方服务商op值
+
+              - column:
+                  name: DeviceType
+                  type: varchar(255)
+                  remarks: 字典表：value值
+
+              - column:
+                  name: CollectorId
+                  type: varchar(64)
+                  remarks: 采集器编号
+
+              - column:
+                  name: CreateUserId
+                  type: varchar(64)
+                  remarks: 创建人Id
+
+              - column:
+                  name: CreateUserName
+                  type: varchar(64)
+                  remarks: 创建人名称
+
+              - column:
+                  name: CreateTime
+                  type: varchar(64)
+                  remarks: 创建时间
+
+              - column:
+                  name: UpdateUserId
+                  type: varchar(64)
+                  remarks: 更新人Id
+
+              - column:
+                  name: UpdateUserName
+                  type: varchar(64)
+                  remarks: 更新人姓名
+
+              - column:
+                  name: UpdateTime
+                  type: varchar(64)
+                  remarks: 更新时间
+
+              - column:
+                  name: IsDeleted
+                  type: int
+                  constraints:
+                    nullable: false
+                  defaultValue: 1
+                  remarks: 删除标记(1=正常、2=删除)
+
+              - column:
+                  name: DeleteUserId
+                  type: varchar(64)
+                  remarks: 删除人Id
+
+              - column:
+                  name: DeleteUserName
+                  type: varchar(64)
+                  remarks: 删除人名称
+
+              - column:
+                  name: DeleteTime
+                  type: varchar(64)
+                  remarks: 删除时间
+
+        - rollback:
+            - dropTable:
+                tableName: electronic_meter_info
+                cascadeConstraints: true
+
+  - changeSet:
+      id: dropcloumandrename
+      author: shibowen
+      changes:
+        - dropColumn:
+            tableName: electronic-meter_info
+            columnName: DeviceType
+
+        - renameTable:
+            oldTableName: electronic-meter_info
+            newTableName: electronic_meter_info
+
+  - changeSet:
+      id: add-composite-unique
+      author: shibowen
+      changes:
+        - addUniqueConstraint:
+            tableName: electronic_meter_info
+            columnNames: ProviderOp, DeviceId
+            constraintName: provider_device_composite
+            comment: 确保同一供应商UUID的唯一
+
+  - changeSet:
+      id: change-e-remarks
+      author: shibowen
+      changes:
+        - setColumnRemarks:
+            tableName: electronic_meter_info
+            columnName: Status
+            columnDataType: int
+            remarks: 状态(1=在线、2=离线、3=未安装、-1=未知)
+
+        - setColumnRemarks:
+            tableName: electronic_meter_info
+            columnName: StatusTime
+            columnDataType: varchar(64)
+            remarks: 状态(1=在线、2=离线、3=未安装、-1=未知)更新时间

@@ -1,0 +1,2 @@
+com.jugu.propertylease.common.autoconfigure.CommonAutoConfiguration
+com.jugu.propertylease.common.autoconfigure.CommonFeignAutoConfiguration

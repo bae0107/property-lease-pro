@@ -1,0 +1,109 @@
+@startuml
+title IAM 认证流程全景图
+skinparam sequenceMessageAlign center
+
+actor "外部客户端" as Client
+participant "Gateway" as GW
+participant "main-service\n(IAM 模块)" as IAM
+database "MySQL" as DB
+participant "Redis" as Redis
+
+== 用户名密码登录流程 ==
+
+Client -> GW: POST /api/v1/auth/login\n{username, password}
+note right of GW: 放行路径（不校验 JWT）
+
+GW -> IAM: 转发请求（无 Service JWT）
+
+activate IAM
+IAM -> IAM: 1. 检查登录失败次数\n(Redis: login_fail:{username})
+alt 超过阈值（5 次/小时）
+    IAM --> GW: 返回 429 Too Many Requests\n错误码：AUTH_LOGIN_TOO_MANY_FAILURES
+    GW --> Client: 429 + 验证码要求
+else 未超限
+    IAM -> DB: 2. 查询用户信息\n(username + password_hash)
+
+    alt 用户不存在或密码错误
+        IAM -> Redis: 3. 累加失败次数\n(login_fail:{username}, TTL=1h)
+        IAM --> GW: 返回 401\n错误码：AUTH_INVALID_CREDENTIALS
+        GW --> Client: 401 统一响应
+    else 密码正确
+        IAM -> Redis: 重置失败次数为 0
+
+        IAM -> DB: 4. 查询用户角色和权限\n(user_id → roles[], permissions[])
+
+        IAM -> IAM: 5. 生成 Access Token\n(HS256, userId, permissions[], exp=30min)
+        IAM -> IAM: 6. 生成 Refresh Token\n(HS256, userId, exp=7d)
+        IAM -> DB: 7. 保存 Refresh Token\n(记录到 refresh_tokens 表)
+
+        IAM --> GW: 返回 LoginResponse\n{accessToken, refreshToken, expiresIn}
+        GW --> Client: 200 OK
+    end
+end
+deactivate IAM
+
+== 使用 Access Token 访问业务接口 ==
+
+Client -> GW: GET /api/v1/rooms\nAuthorization: Bearer <access_token>
+
+GW -> GW: 校验 User JWT\n(user.secret, exp, signature)
+
+alt Token 无效
+    GW --> Client: 401 Invalid Token
+else Token 有效
+    GW -> GW: 生成 Service JWT\n(sub=gateway, userId, permissions[], exp=5min)
+    GW -> IAM: 转发请求\nX-Service-Token: <service_jwt>
+
+    IAM -> IAM: 校验 Service JWT\n(service.secret)
+    IAM -> IAM: 执行业务逻辑
+
+    IAM --> GW: 返回业务数据
+    GW --> Client: 200 OK + 数据
+end
+
+== Refresh Token 刷新流程 ==
+
+Client -> GW: POST /api/v1/auth/refresh\n{refreshToken}
+
+GW -> IAM: 转发请求（携带 Service JWT）
+
+activate IAM
+IAM -> DB: 1. 查询 Refresh Token\n是否有效且未过期
+alt Token 无效
+    IAM --> GW: 返回 401\nAUTH_REFRESH_TOKEN_INVALID
+    GW --> Client: 401
+else Token 有效
+    IAM -> IAM: 2. 生成新 Access Token\n(permissions 从 DB 重新查询)
+    IAM -> IAM: 3. 生成新 Refresh Token\n(轮转策略，可选)
+
+    IAM --> GW: 返回 {accessToken, refreshToken}
+    GW --> Client: 200 OK
+end
+deactivate IAM
+
+== 微信扫码登录流程 ==
+
+Client -> GW: POST /api/v1/auth/wechat\n{wechatCode}
+
+GW -> IAM: 转发请求（无 JWT）
+
+activate IAM
+IAM -> IAM: 1. 调用微信 API\n(code → openid, user_info)
+
+alt 微信授权失败
+    IAM --> GW: 返回 400\nWECHAT_AUTH_FAILED
+    GW --> Client: 400
+else 授权成功
+    IAM -> DB: 2. 根据 openid 查询绑定用户
+    alt 已绑定用户
+        IAM -> IAM: 3. 生成 Token（同登录流程）
+        IAM --> GW: 返回 LoginResponse
+        GW --> Client: 200 OK
+    else 未绑定
+        IAM --> GW: 返回 400\nWECHAT_NOT_BOUND
+        GW --> Client: 400 + 绑定指引
+    end
+end
+deactivate IAM
+
+@enduml

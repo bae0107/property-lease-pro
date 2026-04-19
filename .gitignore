@@ -1,0 +1,41 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+effective-pom.xml
+
+
+/data/PROPERTY_LEASE_BILLING.mv.db
+/data/PROPERTY_LEASE_BILLING.trace.db
+**/*_merged_spec.yaml
+/backend/main-service/hs_err_pid10388.log
+.aider*

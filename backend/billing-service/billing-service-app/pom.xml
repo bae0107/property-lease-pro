@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <artifactId>billing-service-app</artifactId>
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>jooq-codegen-maven</artifactId>
+        <groupId>org.jooq</groupId>
+      </plugin>
+      <plugin>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <groupId>org.openapitools</groupId>
+      </plugin>
+      <plugin>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <groupId>org.codehaus.mojo</groupId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <groupId>org.apache.maven.plugins</groupId>
+      </plugin>
+      <plugin>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <mainClass>com.jugu.propertylease.device.DeviceServiceApplication</mainClass>
+        </configuration>
+        <groupId>org.springframework.boot</groupId>
+      </plugin>
+    </plugins>
+  </build>
+  <dependencies>
+    <dependency>
+      <artifactId>security-starter</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <groupId>org.springdoc</groupId>
+      <version>2.6.0</version>
+    </dependency>
+    <dependency>
+      <artifactId>common</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>billing-service-common</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+      <version>1.0.0</version>
+    </dependency>
+
+    <dependency>
+      <artifactId>main-client</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <artifactId>wxpay-sdk</artifactId>
+      <groupId>com.github.wxpay</groupId>
+      <version>0.0.3</version>
+    </dependency>
+    <dependency>
+      <artifactId>weixin-java-pay</artifactId>
+      <groupId>com.github.binarywang</groupId>
+      <version>4.3.0</version>
+    </dependency>
+    <dependency>
+      <artifactId>caffeine</artifactId>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <version>2.8.2</version>
+    </dependency>
+  </dependencies>
+  <groupId>com.jugu.propertylease</groupId>
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <name>billing-service-app</name>
+  <packaging>jar</packaging>
+
+  <parent>
+    <artifactId>microservice-starter-parent</artifactId>
+    <groupId>com.jugu.propertylease</groupId>
+    <relativePath>../../starters/microservice-starter-parent/pom.xml</relativePath>
+    <version>1.0.0</version>
+  </parent>
+
+  <properties>
+    <apiPackage.name>com.jugu.propertylease.billing.app.api</apiPackage.name>
+    <jooq.package.name>com.jugu.propertylease.billing.app.jooq</jooq.package.name>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+  </properties>
+
+  <version>1.0.0</version>
+
+</project>

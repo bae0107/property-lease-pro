@@ -1,0 +1,49 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 30s    # local 环境放宽超时，便于断点调试
+
+server:
+  port: 8080
+
+# local：所有服务均在 IDEA 本地运行，使用 localhost + 固定端口（GW-1.4）
+gateway:
+  routes:
+    main-service:
+      url: http://localhost:8081
+    billing-service:
+      url: http://localhost:8082
+    device-service:
+      url: http://localhost:8083
+
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+
+  # local 环境关闭限流，避免本地开发调试受干扰
+  rate-limit:
+    enabled: false
+
+# security-starter 配置（security.mode=gateway）
+security:
+  mode: gateway
+  service-name: gateway
+  permit-paths:
+    - /api/main-service/auth/login    # 唯一放行的外部路径；main-service 对应 permit-paths: /auth/login（C-42）
+  jwt:
+    user:
+      secret: local-user-jwt-secret-for-development-only
+      expiration: 1800
+    service:
+      secret: local-service-jwt-secret-for-development-only
+      expiration: 300
+
+logging:
+  level:
+    root: INFO
+    com.jugu.propertylease.gateway: DEBUG

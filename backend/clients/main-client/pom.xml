@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <artifactId>main-client</artifactId>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <configuration combine.self="override">
+              <configOptions>
+                <annotationLibrary>none</annotationLibrary>
+                <apiPackage>com.jugu.propertylease.main.client.api</apiPackage>
+                <configPackage>com.jugu.propertylease.main.client.config</configPackage>
+                <documentationProvider>none</documentationProvider>
+
+                <!-- Spring Cloud OpenFeign client -->
+                <invokerPackage>com.jugu.propertylease.main.client</invokerPackage>
+
+                <!-- 不要 ResponseEntity，直接返回结果对象 -->
+                <library>spring-cloud</library>
+
+                <modelPackage>com.jugu.propertylease.main.client.model</modelPackage>
+                <openApiNullable>false</openApiNullable>
+                <sourceFolder>src/main/java</sourceFolder>
+
+                <useFeignClientContextId>false</useFeignClientContextId>
+                <useFeignClientUrl>true</useFeignClientUrl>
+                <useJakartaEe>true</useJakartaEe>
+
+                <!-- 按 tag 拆分 client -->
+                <useResponseEntity>false</useResponseEntity>
+
+                <!-- 避开 contextId 嵌套占位符坑 -->
+                <useSpringBoot3>true</useSpringBoot3>
+
+                <!-- 生成 url 占位符 -->
+                <useSwaggerUI>false</useSwaggerUI>
+
+                <useTags>true</useTags>
+              </configOptions>
+              <generateApiDocumentation>false</generateApiDocumentation>
+              <generateApiTests>false</generateApiTests>
+
+              <generateApis>true</generateApis>
+              <generateModelDocumentation>false</generateModelDocumentation>
+              <generateModelTests>false</generateModelTests>
+
+              <generateModels>true</generateModels>
+              <generateSupportingFiles>true</generateSupportingFiles>
+              <generatorName>spring</generatorName>
+              <importMappings>
+                <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse
+                </importMapping>
+                <importMapping>PageRequest=com.jugu.propertylease.common.model.PageRequest
+                </importMapping>
+                <importMapping>QueryFilter=com.jugu.propertylease.common.model.QueryFilter
+                </importMapping>
+                <importMapping>StringFilter=com.jugu.propertylease.common.model.StringFilter
+                </importMapping>
+                <importMapping>IdsFilter=com.jugu.propertylease.common.model.IdsFilter
+                </importMapping>
+                <importMapping>EnumFilter=com.jugu.propertylease.common.model.EnumFilter
+                </importMapping>
+                <importMapping>PageResponse=com.jugu.propertylease.common.model.PageResponse
+                </importMapping>
+                <importMapping>TableMeta=com.jugu.propertylease.common.model.TableMeta
+                </importMapping>
+                <importMapping>FilterFieldMeta=com.jugu.propertylease.common.model.FilterFieldMeta
+                </importMapping>
+                <importMapping>FilterOption=com.jugu.propertylease.common.model.FilterOption
+                </importMapping>
+                <importMapping>BatchRequest=com.jugu.propertylease.common.model.BatchRequest
+                </importMapping>
+              </importMappings>
+
+              <inputSpec>
+                ${project.basedir}/../../main-service/src/main/resources/openapi/iam-external.yaml
+              </inputSpec>
+
+              <!-- 复用 common.jar 公共模型 -->
+              <output>${project.build.directory}/generated-sources/openapi</output>
+
+              <schemaMappings>
+                <schemaMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse
+                </schemaMapping>
+                <schemaMapping>PageRequest=com.jugu.propertylease.common.model.PageRequest
+                </schemaMapping>
+                <schemaMapping>QueryFilter=com.jugu.propertylease.common.model.QueryFilter
+                </schemaMapping>
+                <schemaMapping>StringFilter=com.jugu.propertylease.common.model.StringFilter
+                </schemaMapping>
+                <schemaMapping>IdsFilter=com.jugu.propertylease.common.model.IdsFilter
+                </schemaMapping>
+                <schemaMapping>EnumFilter=com.jugu.propertylease.common.model.EnumFilter
+                </schemaMapping>
+                <schemaMapping>PageResponse=com.jugu.propertylease.common.model.PageResponse
+                </schemaMapping>
+                <schemaMapping>TableMeta=com.jugu.propertylease.common.model.TableMeta
+                </schemaMapping>
+                <schemaMapping>FilterFieldMeta=com.jugu.propertylease.common.model.FilterFieldMeta
+                </schemaMapping>
+                <schemaMapping>FilterOption=com.jugu.propertylease.common.model.FilterOption
+                </schemaMapping>
+                <schemaMapping>BatchRequest=com.jugu.propertylease.common.model.BatchRequest
+                </schemaMapping>
+              </schemaMappings>
+            </configuration>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <id>default</id>
+          </execution>
+        </executions>
+        <groupId>org.openapitools</groupId>
+        <version>${openapi-generator.version}</version>
+      </plugin>
+
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <encoding>${project.build.sourceEncoding}</encoding>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+        </configuration>
+        <version>3.13.0</version>
+      </plugin>
+    </plugins>
+  </build>
+  <dependencies>
+    <!-- OpenFeign starter：Spring Cloud 官方客户端入口 -->
+    <dependency>
+      <artifactId>spring-cloud-starter-openfeign</artifactId>
+      <groupId>org.springframework.cloud</groupId>
+    </dependency>
+
+    <!-- 关键：显式使用 Apache HttpClient 5 -->
+    <dependency>
+      <artifactId>httpclient5</artifactId>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+    </dependency>
+
+    <!-- Jackson -->
+    <dependency>
+      <artifactId>jackson-databind</artifactId>
+      <groupId>com.fasterxml.jackson.core</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+    </dependency>
+
+    <!-- Jakarta -->
+    <dependency>
+      <artifactId>jakarta.annotation-api</artifactId>
+      <groupId>jakarta.annotation</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jakarta.validation-api</artifactId>
+      <groupId>jakarta.validation</groupId>
+    </dependency>
+
+    <!-- OpenAPI nullable -->
+    <dependency>
+      <artifactId>jackson-databind-nullable</artifactId>
+      <groupId>org.openapitools</groupId>
+      <version>0.2.6</version>
+    </dependency>
+
+    <!-- 复用公共模型 -->
+    <dependency>
+      <artifactId>common</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+      <version>${common.version}</version>
+    </dependency>
+  </dependencies>
+  <dependencyManagement>
+    <dependencies>
+      <!-- Spring Boot 依赖版本 -->
+      <dependency>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <groupId>org.springframework.boot</groupId>
+        <scope>import</scope>
+        <type>pom</type>
+        <version>${spring.boot.version}</version>
+      </dependency>
+
+      <!-- Spring Cloud 依赖版本 -->
+      <dependency>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <groupId>org.springframework.cloud</groupId>
+        <scope>import</scope>
+        <type>pom</type>
+        <version>${spring.cloud.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+  <description>Generated OpenFeign SDK for main-service</description>
+
+  <groupId>com.jugu.propertylease</groupId>
+  <modelVersion>4.0.0</modelVersion>
+
+  <name>main-client</name>
+
+  <packaging>jar</packaging>
+
+  <properties>
+    <common.version>1.0.0</common.version>
+    <java.version>17</java.version>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+
+    <openapi-generator.version>7.17.0</openapi-generator.version>
+
+    <!-- 与你当前服务端体系保持一致 -->
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <spring.boot.version>3.2.0</spring.boot.version>
+
+    <!-- 只给 common 显式版本 -->
+    <spring.cloud.version>2023.0.0</spring.cloud.version>
+  </properties>
+
+  <version>1.0.0</version>
+</project>

@@ -1,0 +1,27 @@
+spring:
+  docker:
+    compose:
+      enabled: true
+      profiles:
+        # 默认不启动自身服务
+        active: "infra,gateway,main-service,device-service"
+
+  datasource:
+    url: jdbc:mysql://mysql:3306/PROPERTY_LEASE_BILLING?characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: root
+
+    #  liquibase:
+    #    # MySQL 没有 schema 的概念，但 Liquibase 需要这个属性来运行
+    #    default-schema: PROPERTY_LEASE_BILLING
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600s
+
+  data:
+    redis:
+      host: redis # 使用 Docker Compose 服务名作为 Host
+      port: 6379

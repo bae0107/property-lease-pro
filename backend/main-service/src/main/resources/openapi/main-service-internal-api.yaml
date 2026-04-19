@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: Main Service Internal API
+  description: |
+    main-service 内部接口契约 v2（不经 Gateway，服务间直接调用）。
+    
+    安全规则：
+    - 需要有效 Service JWT（X-Service-Token）
+    - 无 x-required-permission（Service 层校验调用方白名单）
+    - 允许调用方：billing-service、device-service、main-service
+  version: 2.0.0
+
+servers:
+  - url: /internal/v1
+    description: 内部接口根路径，不经 Gateway
+
+tags:
+  - name: internal-users
+    description: 内部用户管理（业务系统预创建 TENANT）
+
+paths:
+
+  /users:
+    post:
+      tags: [ internal-users ]
+      operationId: createTenantUser
+      summary: 业务系统预创建 TENANT 用户
+      description: |
+        由 billing-service / device-service 等在创建租客业务实体时调用。
+        约束：
+        - 调用方必须在白名单（Service JWT sub 字段校验）
+        - mobile 全局唯一，重复调用返回 409
+        - 不触发任何登录逻辑，仅建立用户记录，待 TENANT 首次微信登录时通过 mobile 匹配绑定
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTenantResult'
+        '400':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: 调用方不在白名单
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '409':
+          description: 手机号已被使用
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    CreateTenantRequest:
+      type: object
+      required: [ mobile ]
+      properties:
+        mobile:
+          type: string
+          pattern: '^1[3-9]\d{9}$'
+          description: 手机号（必填，全局唯一，用于首次微信登录手机号匹配绑定）
+          example: '13800138000'
+        source:
+          type: string
+          nullable: true
+          maxLength: 50
+          description: 来源标识，记录创建方
+          example: BILLING_SYSTEM
+
+    CreateTenantResult:
+      type: object
+      required: [ userId, mobile, type, status ]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          example: 42
+        mobile:
+          type: string
+          example: '13800138000'
+        type:
+          type: string
+          enum: [ TENANT ]
+        status:
+          type: string
+          enum: [ ACTIVE ]
+
+  securitySchemes:
+    serviceJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service JWT（X-Service-Token）
+
+security:
+  - serviceJwt: [ ]

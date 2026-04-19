@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+  <artifactId>main-service</artifactId>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>jooq-codegen-maven</artifactId>
+        <groupId>org.jooq</groupId>
+      </plugin>
+      <plugin>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <configuration combine.self="override">
+              <configOptions>
+                <apiPackage>com.jugu.propertylease.main.api</apiPackage>
+                <delegatePattern>true</delegatePattern>
+                <documentationProvider>springdoc</documentationProvider>
+                <modelPackage>com.jugu.propertylease.main.api.model</modelPackage>
+                <openApiNullable>false</openApiNullable>
+                <useJakartaEe>true</useJakartaEe>
+                <useResponseEntity>false</useResponseEntity>
+                <useSpringBoot3>true</useSpringBoot3>
+              </configOptions>
+              <generateApiDocumentation>false</generateApiDocumentation>
+              <generateApiTests>false</generateApiTests>
+
+              <generateApis>true</generateApis>
+              <generateModelDocumentation>false</generateModelDocumentation>
+
+              <generateModelTests>false</generateModelTests>
+
+              <generateModels>true</generateModels>
+              <generateSupportingFiles>true</generateSupportingFiles>
+              <generatorName>spring</generatorName>
+              <importMappings>
+                <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse
+                </importMapping>
+                <importMapping>PageRequest=com.jugu.propertylease.common.model.PageRequest
+                </importMapping>
+                <importMapping>QueryFilter=com.jugu.propertylease.common.model.QueryFilter
+                </importMapping>
+                <importMapping>StringFilter=com.jugu.propertylease.common.model.StringFilter
+                </importMapping>
+                <importMapping>IdsFilter=com.jugu.propertylease.common.model.IdsFilter
+                </importMapping>
+                <importMapping>EnumFilter=com.jugu.propertylease.common.model.EnumFilter
+                </importMapping>
+                <importMapping>PageResponse=com.jugu.propertylease.common.model.PageResponse
+                </importMapping>
+                <importMapping>ListViewMeta=com.jugu.propertylease.common.model.ListViewMeta
+                </importMapping>
+                <importMapping>ColumnMeta=com.jugu.propertylease.common.model.ColumnMeta
+                </importMapping>
+                <importMapping>FilterFieldMeta=com.jugu.propertylease.common.model.FilterFieldMeta
+                </importMapping>
+                <importMapping>FilterOption=com.jugu.propertylease.common.model.FilterOption
+                </importMapping>
+                <importMapping>BatchRequest=com.jugu.propertylease.common.model.BatchRequest
+                </importMapping>
+              </importMappings>
+
+              <inputSpec>${project.basedir}/src/main/resources/openapi/iam-external.yaml</inputSpec>
+              <output>${project.build.directory}/generated-sources/openapi</output>
+
+              <schemaMappings>
+                <schemaMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse
+                </schemaMapping>
+                <schemaMapping>PageRequest=com.jugu.propertylease.common.model.PageRequest
+                </schemaMapping>
+                <schemaMapping>QueryFilter=com.jugu.propertylease.common.model.QueryFilter
+                </schemaMapping>
+                <schemaMapping>StringFilter=com.jugu.propertylease.common.model.StringFilter
+                </schemaMapping>
+                <schemaMapping>IdsFilter=com.jugu.propertylease.common.model.IdsFilter
+                </schemaMapping>
+                <schemaMapping>EnumFilter=com.jugu.propertylease.common.model.EnumFilter
+                </schemaMapping>
+                <schemaMapping>PageResponse=com.jugu.propertylease.common.model.PageResponse
+                </schemaMapping>
+                <schemaMapping>ListViewMeta=com.jugu.propertylease.common.model.ListViewMeta
+                </schemaMapping>
+                <schemaMapping>ColumnMeta=com.jugu.propertylease.common.model.ColumnMeta
+                </schemaMapping>
+                <schemaMapping>FilterFieldMeta=com.jugu.propertylease.common.model.FilterFieldMeta
+                </schemaMapping>
+                <schemaMapping>FilterOption=com.jugu.propertylease.common.model.FilterOption
+                </schemaMapping>
+                <schemaMapping>BatchRequest=com.jugu.propertylease.common.model.BatchRequest
+                </schemaMapping>
+              </schemaMappings>
+            </configuration>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <id>default</id>
+          </execution>
+        </executions>
+        <groupId>org.openapitools</groupId>
+        <version>7.17.0</version>
+      </plugin>
+      <plugin>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <groupId>org.codehaus.mojo</groupId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <groupId>org.apache.maven.plugins</groupId>
+      </plugin>
+      <plugin>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <mainClass>com.jugu.propertylease.main.MainServiceApplication</mainClass>
+        </configuration>
+        <groupId>org.springframework.boot</groupId>
+
+      </plugin>
+    </plugins>
+  </build>
+
+  <dependencies>
+    <!-- Spring Security 认证和授权-->
+    <dependency>
+      <artifactId>security-starter</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>weixin-java-mp</artifactId>
+      <groupId>com.github.binarywang</groupId>
+      <version>4.8.0</version>
+    </dependency>
+    <dependency>
+      <artifactId>aliyun-java-sdk-core</artifactId>
+      <groupId>com.aliyun</groupId>
+      <version>4.6.4</version>
+    </dependency>
+    <dependency>
+      <artifactId>aliyun-java-sdk-dm</artifactId>
+      <groupId>com.aliyun</groupId>
+      <version>3.3.2</version>
+    </dependency>
+    <dependency>
+      <artifactId>dysmsapi20170525</artifactId>
+      <groupId>com.aliyun</groupId>
+      <version>3.0.0</version>
+    </dependency>
+  </dependencies>
+  <modelVersion>4.0.0</modelVersion>
+
+  <name>main-service</name>
+
+  <parent>
+    <artifactId>microservice-starter-parent</artifactId>
+    <groupId>com.jugu.propertylease</groupId>
+    <relativePath>../starters/microservice-starter-parent/pom.xml</relativePath>
+    <version>1.0.0</version>
+    <!--  lookup parent from repository  -->
+  </parent>
+
+  <properties>
+    <apiPackage.name>com.jugu.propertylease.main.api</apiPackage.name>
+    <jooq.package.name>com.jugu.propertylease.main.jooq</jooq.package.name>
+  </properties>
+
+</project>

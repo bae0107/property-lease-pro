@@ -1,0 +1,170 @@
+@startuml
+title 微信扫码登录业务流程
+skinparam sequenceMessageAlign center
+skinparam participantStyle rectangle
+
+actor "用户" as User
+participant "前端 (Web/App)" as Frontend
+participant "Gateway" as GW
+participant "IAM 服务" as IAM
+participant "微信 API" as WeChatAPI
+participant "Redis" as Redis
+
+== 第一步：获取微信授权码 ==
+
+User -> Frontend: 点击微信扫码登录
+Frontend -> WeChatAPI: 跳转微信授权页面
+ref over Frontend, WeChatAPI
+  重定向到微信开放平台
+  参数：appid, redirect_uri, scope=snsapi_login, state=randomStr
+end ref
+
+WeChatAPI --> Frontend: 回调 ?code=xxx&state=xxx
+Frontend -> Frontend: 验证 state 一致性（可选）
+
+== 第二步：换取用户信息并登录 ==
+
+Frontend -> GW: POST /api/v1/auth/wechat\n{code, state}
+note right: state 用于防 CSRF 攻击
+GW -> GW: 生成 X-Trace-Id
+GW -> IAM: 转发请求（无 Service JWT）
+
+activate IAM
+
+IAM -> Redis: 1. 从 Redis 获取缓存的 state
+alt state 不存在或不匹配
+    IAM --> GW: 返回 400 AUTH_STATE_INVALID
+    note right: state 已过期或被篡改
+    GW --> Frontend: 400 + 错误信息
+    Frontend --> User: 提示重新扫码
+    deactivate IAM
+else state 验证通过
+    IAM -> Redis: 删除已使用的 state
+    
+    IAM -> WeChatAPI: 2. code 换取 access_token + openid\nPOST https://api.weixin.qq.com/sns/oauth2/access_token
+    note right: 超时时间：5 秒
+    alt HTTP 请求失败或超时
+        IAM --> GW: 返回 503 WECHAT_API_ERROR
+        GW --> Frontend: 503 + "微信服务暂时不可用"
+        Frontend --> User: 提示稍后重试
+        deactivate IAM
+    else HTTP 请求成功
+        WeChatAPI --> IAM: 返回 {access_token, openid, unionid, expires_in}
+        
+        IAM -> IAM: 3. 校验微信返回数据完整性
+        alt openid 为空或响应异常
+            IAM --> GW: 返回 400 WECHAT_AUTH_FAILED
+            GW --> Frontend: 400 + "微信授权失败"
+            Frontend --> User: 提示重新授权
+            deactivate IAM
+        else openid 有效
+            IAM -> IAM: 4. 用 openid 查询 IAM_WECHAT_BINDING 表
+            
+            alt 已绑定用户
+                IAM -> IAM: 5. 查询用户状态\n（检查是否 ACTIVE/DISABLED/LOCKED）
+                alt 账号状态异常
+                    IAM --> GW: 返回 403 USER_ACCOUNT_DISABLED
+                    note right: 账号被禁用或锁定
+                    GW --> Frontend: 403 + 错误详情
+                    Frontend --> User: 联系管理员
+                    deactivate IAM
+                else 账号正常
+                    IAM -> IAM: 6. 查询用户角色和权限列表
+                    IAM -> IAM: 7. 生成 JWT Token Pair\n(Access Token: 30min, Refresh Token: 7d)
+                    
+                    ref over IAM
+                      Access Token Claims:
+                      - sub: username
+                      - userId: 123
+                      - permissions: ["room:read", ...]
+                      - exp: now + 1800s
+                    end ref
+                    
+                    IAM -> IAM: 8. 记录登录日志\n(user_id, ip, timestamp, result=SUCCESS)
+                    IAM --> GW: 返回 LoginResponse\n{accessToken, refreshToken, expiresIn}
+                    GW --> Frontend: 200 OK + Token
+                    Frontend --> User: 登录成功，跳转首页
+                    deactivate IAM
+                end alt
+                
+            else 未绑定
+                IAM --> GW: 返回 400 WECHAT_NOT_BOUND\n{wechatOpenId, bindRequired: true}
+                note right: 返回临时 token 用于绑定流程
+                GW --> Frontend: 400 + 绑定指引
+                Frontend --> User: 显示绑定界面
+                deactivate IAM
+            end alt
+        end alt
+    end alt
+end alt
+
+== 第三步：账号绑定（首次登录） ==
+
+User -> Frontend: 输入用户名和密码
+Frontend -> GW: POST /api/v1/account/bind-wechat\n{username, password, wechatCode, tempToken}
+note right: wechatCode 用于再次验证微信身份\ntempToken 防止绑定流程被劫持
+
+GW -> IAM: 转发请求
+
+activate IAM
+
+IAM -> IAM: 1. 验证 tempToken 有效性\n（从 Redis 获取，防止重放攻击）
+alt tempToken 无效或已过期
+    IAM --> GW: 返回 401 BIND_TOKEN_EXPIRED
+    GW --> Frontend: 401 + "绑定会话已过期"
+    Frontend --> User: 请重新扫码
+    deactivate IAM
+else tempToken 有效
+    IAM -> IAM: 2. 验证用户名密码
+    alt 用户名或密码错误
+        IAM --> GW: 返回 401 INVALID_CREDENTIALS
+        IAM -> Redis: 累加登录失败次数
+        note right: 触发防爆破机制
+        GW --> Frontend: 401 + "账号或密码错误"
+        Frontend --> User: 提示错误
+        deactivate IAM
+    else 验证通过
+        IAM -> IAM: 3. 检查账号状态
+        alt 账号被禁用/锁定
+            IAM --> GW: 返回 403 USER_ACCOUNT_DISABLED
+            GW --> Frontend: 403 + 错误信息
+            Frontend --> User: 联系管理员
+            deactivate IAM
+        else 账号正常
+            IAM -> WeChatAPI: 4. 用 wechatCode 重新换取 openid\n（必须与第一步一致）
+            WeChatAPI --> IAM: 返回 openid
+            
+            IAM -> IAM: 5. 校验 openid 一致性\n（防止绑定流程被篡改）
+            alt openid 不一致
+                IAM --> GW: 返回 400 BIND_WECHAT_MISMATCH
+                note right: 检测到绑定攻击
+                IAM -> IAM: 记录安全事件告警
+                GW --> Frontend: 400 + "微信信息不匹配"
+                Frontend --> User: 请重新扫码
+                deactivate IAM
+            else openid 一致
+                IAM -> IAM: 6. 检查该 openid 是否已被其他账号绑定
+                alt 已绑定其他用户
+                    IAM --> GW: 返回 409 WECHAT_ALREADY_BOUND
+                    note right: 一个微信只能绑定一个账号
+                    GW --> Frontend: 409 + "该微信已绑定其他账号"
+                    Frontend --> User: 联系客服解绑
+                    deactivate IAM
+                else 未绑定
+                    IAM -> IAM_WECHAT_BINDING: 7. 插入绑定记录\n(user_id, wechat_openid, wechat_unionid, bound_at)
+                    IAM -> IAM: 8. 重置登录失败计数器
+                    IAM -> IAM: 9. 更新最后登录时间/IP
+                    
+                    IAM -> IAM: 10. 生成 JWT Token Pair
+                    IAM -> Redis: 删除临时 token
+                    IAM --> GW: 返回 BindSuccessResponse\n{accessToken, refreshToken, user: {...}}
+                    GW --> Frontend: 200 OK + Token + 用户信息
+                    Frontend --> User: 绑定成功，自动登录
+                    deactivate IAM
+                end alt
+            end alt
+        end alt
+    end alt
+end alt
+
+@enduml

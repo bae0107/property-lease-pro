@@ -1,0 +1,16 @@
+@startuml
+actor User
+participant ServiceA
+participant ServiceB
+
+User -> ServiceA : external/**
+ServiceA -> ServiceA : Build SecurityContext
+
+ServiceA -> ServiceB : internal/user/**\nUser-JWT + Service-Token
+ServiceB -> ServiceB : Verify Service-Token
+ServiceB -> ServiceB : Verify User-JWT
+ServiceB -> ServiceB : Data Permission Filter
+
+ServiceB -> ServiceA : Response
+ServiceA -> User : Response
+@enduml

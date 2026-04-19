@@ -1,0 +1,65 @@
+spring:
+  # H2 内存数据库配置
+  datasource:
+    url: jdbc:mysql://rm-uf657oh47p060763poo.mysql.rds.aliyuncs.com/PROPERTY_LEASE_DEVICE?characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: shibowen
+    password: Shi64395338
+
+  # H2 控制台配置（方便调试）
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        trace: false
+        web-allow-others: false
+  sql:
+    init:
+      platform: h2
+      mode: always
+
+  #  # Liquibase 配置
+  #  liquibase:
+  #    default-schema: PUBLIC
+  #    liquibase-schema: PUBLIC
+
+  # 1. 禁用 Redis 自动配置
+  # 启动时不要去检查 Redis 连接。
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+
+    # 2. 启用内存缓存
+    # 使用 ConcurrentHashMap 作为底层实现。
+  cache:
+    type: simple
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: INFO
+
+auth:
+  # 随便起个名字，保证唯一即可，解决 Service id not legal 报错
+  name: auth-client
+  # 配置你真实的 IAM 服务地址
+  url: http://localhost:8081
+iamUsers:
+  name: iam-users
+  url: http://localhost:8081
+iamRoles:
+  name: iam-roles
+  url: http://localhost:8081
+iamPermissions:
+  name: iam-permissions
+  url: http://localhost:8081
+iamWechat:
+  name: iam-wechat
+  url: http://localhost:8081
+iamDataScope:
+  name: iam-data-scope
+  url: http://localhost:8081
+
+security:
+  mode: mock

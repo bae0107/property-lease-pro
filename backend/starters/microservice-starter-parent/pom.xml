@@ -1,0 +1,374 @@
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <artifactId>microservice-starter-parent</artifactId>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <artifactId>jooq-codegen-maven</artifactId>
+          <configuration>
+            <generator>
+              <database>
+                <forcedTypes>
+                  <forcedType>
+                    <converter>com.jugu.propertylease.common.jooq.ShanghaiOffsetDateTimeConverter
+                    </converter>
+                    <includeExpression>(?i:PUBLIC\.IAM_.*\.(CREATED_AT|UPDATED_AT|DELETED_AT))
+                    </includeExpression>
+                    <objectType>COLUMN</objectType>
+                    <userType>java.time.OffsetDateTime</userType>
+                  </forcedType>
+
+                  <forcedType>
+                    <converter>com.jugu.propertylease.main.propertymgr.JsonToIntegerSetConverter
+                    </converter>
+                    <includeExpression>building_info\.Floors</includeExpression>
+                    <!-- 精确匹配 building_info 表的 Floors 字段（注意大小写） -->
+                    <includeTypes>JSON</includeTypes>
+                    <userType>java.util.Set&lt;java.lang.Integer&gt;</userType>
+                  </forcedType>
+                </forcedTypes>
+                <includes>.*</includes>
+                <name>org.jooq.meta.extensions.liquibase.LiquibaseDatabase</name>
+                <properties>
+                  <property>
+                    <key>rootPath</key>
+                    <value>${basedir}/src/main/resources</value>
+                  </property>
+                  <property>
+                    <key>scripts</key>
+                    <value>db/changelog/db.changelog-master.yaml</value>
+                  </property>
+
+                  <property>
+                    <key>database.dialect</key>
+                    <value>MYSQL</value>
+                  </property>
+
+                </properties>
+              </database>
+              <generate>
+                <daos>true</daos>
+
+                <fluentSetters>true</fluentSetters>
+                <immutablePojos>false</immutablePojos>
+                <nonnullAnnotationType>jakarta.annotation.Nonnull</nonnullAnnotationType>
+                <nullableAnnotationType>jakarta.annotation.Nullable</nullableAnnotationType>
+                <!--                                <jpaAnnotations>true</jpaAnnotations>-->
+                <pojos>true</pojos>
+
+                <records>true</records>
+
+                <serializablePojos>true</serializablePojos>
+                <springAnnotations>true</springAnnotations>
+              </generate>
+
+              <target>
+                <directory>target/generated-sources/jooq</directory>
+                <packageName>${jooq.package.name}</packageName>
+              </target>
+            </generator>
+          </configuration>
+          <dependencies>
+            <dependency>
+              <artifactId>jooq-meta-extensions-liquibase</artifactId>
+              <groupId>org.jooq</groupId>
+              <version>${jooq.version}</version>
+            </dependency>
+            <dependency>
+              <artifactId>snakeyaml</artifactId>
+              <groupId>org.yaml</groupId>
+              <version>${snakeyaml.version}</version>
+            </dependency>
+            <dependency>
+              <artifactId>mysql-connector-j</artifactId>
+              <groupId>com.mysql</groupId>
+              <version>${mysql.version}</version>
+            </dependency>
+            <dependency>
+              <artifactId>liquibase-core</artifactId>
+              <groupId>org.liquibase</groupId>
+              <version>${liquibase.version}</version>
+            </dependency>
+          </dependencies>
+
+          <executions>
+            <execution>
+              <goals>
+                <goal>generate</goal>
+              </goals>
+              <id>jooq-codegen</id>
+              <phase>generate-sources</phase>
+            </execution>
+          </executions>
+
+          <groupId>org.jooq</groupId>
+
+          <version>${jooq.version}</version>
+        </plugin>
+
+        <plugin>
+          <artifactId>build-helper-maven-plugin</artifactId>
+          <executions>
+            <execution>
+              <configuration>
+                <sources>
+                  <source>${project.build.directory}/generated-sources/jooq</source>
+                </sources>
+              </configuration>
+              <goals>
+                <goal>add-source</goal>
+              </goals>
+              <id>add-jooq-sources</id>
+              <phase>generate-sources</phase>
+            </execution>
+            <execution>
+              <configuration>
+                <sources>
+                  <source>${project.build.directory}/generated-sources/openapi/src/test/java
+                  </source>
+                </sources>
+              </configuration>
+              <goals>
+                <goal>add-test-source</goal>
+              </goals>
+              <id>add-openapi-test-sources</id>
+              <phase>generate-test-sources</phase>
+            </execution>
+            <!--                        <execution>-->
+            <!--                            <id>add-openapi-generated-resources</id>-->
+            <!--                            <phase>generate-resources</phase>-->
+            <!--                            <goals>-->
+            <!--                                <goal>add-resource</goal>-->
+            <!--                            </goals>-->
+            <!--                            <configuration>-->
+            <!--                                <resources>-->
+            <!--                                    <resource>-->
+            <!--                                        <directory>${project.build.directory}/generated-sources/openapi/src/main/resources</directory>-->
+            <!--                                    </resource>-->
+            <!--                                </resources>-->
+            <!--                            </configuration>-->
+            <!--                        </execution>-->
+          </executions>
+          <groupId>org.codehaus.mojo</groupId>
+          <version>${build-helper-maven-plugin.version}</version>
+        </plugin>
+
+        <plugin>
+          <artifactId>maven-antrun-plugin</artifactId>
+          <executions>
+            <execution>
+              <configuration>
+                <target>
+                  <fileset dir="${project.build.directory}/generated-sources/jooq"
+                    excludes="**/package-info.java"
+                    id="jooq.pojos"
+                    includes="**/*tables/pojos/*.java"/>
+
+                  <replaceregexp flags="mg"
+                    match="^import jakarta\.persistence\.[A-Za-z]+;[\r\n]?"
+                    replace="">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                  <replaceregexp flags="mg"
+                    match="(@Column\s*\([^)]*\))[\r\n]?"
+                    replace="">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+                  <replaceregexp flags="mg"
+                    match="(@GeneratedValue\s*\([^)]*\))[\r\n]?"
+                    replace="">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                  <replaceregexp flags="mg"
+                    match="(,\s*uniqueConstraints\s*=\s*\{\s*@[^)]*\s*\)\s*\}\s*\))"
+                    replace=")">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                  <replaceregexp flags="g"
+                    match="@jakarta\.persistence\.Table"
+                    replace="@org.springframework.data.relational.core.mapping.Table">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                  <replaceregexp flags="mg"
+                    match="^@Entity[\r\n]?"
+                    replace="">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                  <replaceregexp flags="g"
+                    match="@jakarta.persistence.Id"
+                    replace="@org.springframework.data.annotation.Id">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                  <replaceregexp
+                    flags="g"
+                    match="@SuppressWarnings\(\{ &quot;all&quot;, &quot;unchecked&quot;, &quot;rawtypes&quot; \)"
+                    replace="@SuppressWarnings({ &quot;all&quot;, &quot;unchecked&quot;, &quot;rawtypes&quot;} )">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                  <replaceregexp flags="m"
+                    match="^(package\s+[^;]+;)"
+                    replace="\1&#xA;&#xA;import org.springframework.data.annotation.Id;&#xA;import org.springframework.data.relational.core.mapping.Table;">
+                    <fileset refid="jooq.pojos"/>
+                  </replaceregexp>
+
+                </target>
+              </configuration>
+              <goals>
+                <goal>run</goal>
+              </goals>
+              <id>replace-jooq-annotations-for-spring-data-jdbc</id>
+              <phase>process-sources</phase>
+            </execution>
+          </executions>
+          <version>3.1.0</version>
+        </plugin>
+
+        <plugin>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <executions>
+            <execution>
+              <goals>
+                <goal>repackage</goal>
+              </goals>
+              <id>repackage</id>
+            </execution>
+          </executions>
+          <groupId>org.springframework.boot</groupId>
+          <version>${spring-boot-maven-plugin}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+  <dependencies>
+    <!-- 只声明依赖，不用写版本 从starter-parent继承 ，这些是几个服务共用的依赖-->
+    <dependency>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <groupId>org.springframework.boot</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>spring-boot-starter-data-jdbc</artifactId>
+      <groupId>org.springframework.boot</groupId>
+    </dependency>
+
+
+    <!--业务common的依赖-->
+    <dependency>
+      <artifactId>common</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+    </dependency>
+    <!--统一依赖docker compose-->
+    <dependency>
+      <artifactId>spring-boot-docker-compose</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <optional>true</optional>
+      <scope>runtime</scope> <!-- 可以不需要了？-->
+    </dependency>
+
+    <dependency>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+      <groupId>org.springframework.boot</groupId>
+    </dependency>
+
+    <!-- 使用jooq编译record-->
+    <dependency>
+      <artifactId>spring-boot-starter-jooq</artifactId>
+      <groupId>org.springframework.boot</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>liquibase-core</artifactId>
+      <groupId>org.liquibase</groupId>
+    </dependency>
+
+
+    <!-- Jakarta Validation（Spring Boot 3 自带，但确保引入） -->
+    <dependency>
+      <artifactId>spring-boot-starter-validation</artifactId>
+      <groupId>org.springframework.boot</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>spring-boot-starter-data-redis</artifactId>
+      <groupId>org.springframework.boot</groupId>
+    </dependency>
+    <!-- MySQL driver -->
+    <dependency>
+      <artifactId>mysql-connector-j</artifactId>
+      <groupId>com.mysql</groupId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <artifactId>h2</artifactId>
+      <groupId>com.h2database</groupId>
+      <scope>runtime</scope>
+    </dependency>
+
+
+    <dependency>
+      <artifactId>junit-jupiter</artifactId>
+      <groupId>org.testcontainers</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>mysql</artifactId>
+      <groupId>org.testcontainers</groupId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <groupId>org.springdoc</groupId>
+      <version>2.3.0</version>
+    </dependency>
+
+    <dependency>
+      <artifactId>jakarta.persistence-api</artifactId>
+      <groupId>jakarta.persistence</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>spring-data-commons</artifactId>
+      <groupId>org.springframework.data</groupId>
+    </dependency>
+
+  </dependencies>
+  <dependencyManagement>
+    <dependencies>
+    </dependencies>
+  </dependencyManagement>
+  <description>微服务从这个 parent开始</description>
+  <modelVersion>4.0.0</modelVersion>
+
+  <name>starter-parent-microservice</name>
+
+
+  <packaging>pom</packaging>
+
+  <parent>
+    <artifactId>starter-parent</artifactId>
+    <groupId>com.jugu.propertylease</groupId>
+    <relativePath>../starter-parent/pom.xml</relativePath>
+    <version>1.0.0</version>
+    <!--  lookup parent from repository  -->
+  </parent>
+
+  <properties>
+    <apiPackage.isModelOnly>false</apiPackage.isModelOnly>
+    <apiPackage.isServiceOnly>true</apiPackage.isServiceOnly>
+    <jooq.package.name>com.jugu.propertylease.jooq</jooq.package.name>
+  </properties>
+
+</project>

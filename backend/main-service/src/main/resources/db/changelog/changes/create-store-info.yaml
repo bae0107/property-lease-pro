@@ -1,0 +1,236 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-store-info-table
+      author: shibowen
+      changes:
+        - createTable:
+            tableName: store_info
+            remarks: 门店信息
+            columns:
+              - column:
+                  name: StoreId
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  remarks: 门店ID（业务内部）
+
+              - column:
+                  name: RegionId
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                  remarks: 省/直辖市名称
+
+              - column:
+                  name: StoreName
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                  remarks: 门店名称
+
+              - column:
+                  name: StoreAddress
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+                  remarks: 门店地址
+
+              - column:
+                  name: StorePhone
+                  type: varchar(64)
+                  remarks: 门店电话
+
+              - column:
+                  name: StoreDes
+                  type: varchar(100)
+                  remarks: 门店描述
+
+              - column:
+                  name: EleUnitPrice
+                  type: double(11,2)
+                  constraints:
+                    nullable: false
+                  remarks: 电费单位价格
+
+              - column:
+                  name: WaterUnitPrice
+                  type: double(11,2)
+                  constraints:
+                    nullable: false
+                  remarks: 水费单位价格
+
+              - column:
+                  name: WaterOverdraft
+                  type: int
+                  remarks: 水费可透支额度
+
+              - column:
+                  name: EleOverdraft
+                  type: int
+                  remarks: 电费可透支额度
+
+              - column:
+                  name: WaterRemind
+                  type: int
+                  remarks: 水费预警金额
+
+              - column:
+                  name: EleRemind
+                  type: int
+                  remarks: 电费预警金额
+
+              - column:
+                  name: RechargeMin
+                  type: int
+                  remarks: 充值最小金额
+
+              - column:
+                  name: CanCheckinPre
+                  type: TINYINT(1)
+                  remarks: 允许提前办理入住
+
+              - column:
+                  name: RenewTime
+                  type: TINYINT(1)
+                  remarks: 0为不做设置1为到期前1个月
+
+              - column:
+                  name: RentFeeDay
+                  type: INT
+                  remarks: 提前交租天数
+
+              - column:
+                  name: ServiceFeeDay
+                  type: INT
+                  remarks: 提前生成服务费天数
+
+              - column:
+                  name: RefundFeeDay
+                  type: INT
+                  remarks: 退款天数
+
+              - column:
+                  name: PrepayEle
+                  type: INT
+                  remarks: 预缴纳电费
+
+              - column:
+                  name: PrepayWater
+                  type: INT
+                  remarks: 预缴纳电费
+
+              - column:
+                  name: Deposit
+                  type: INT
+                  remarks: 床位押金
+
+              - column:
+                  name: UseStorePwd
+                  type: TINYINT(1)
+                  remarks: 是否启用门店密码
+
+              - column:
+                  name: StorePwd
+                  type: INT
+                  remarks: 门店密码
+
+              - column:
+                  name: CreateUserId
+                  type: varchar(64)
+                  remarks: 创建人Id
+
+              - column:
+                  name: CreateUserName
+                  type: varchar(64)
+                  remarks: 创建人名称
+
+              - column:
+                  name: CreateTime
+                  type: varchar(64)
+                  remarks: 创建时间
+
+              - column:
+                  name: UpdateUserId
+                  type: varchar(64)
+                  remarks: 更新人Id
+
+              - column:
+                  name: UpdateUserName
+                  type: varchar(64)
+                  remarks: 更新人姓名
+
+              - column:
+                  name: UpdateTime
+                  type: varchar(64)
+                  remarks: 更新时间
+
+              - column:
+                  name: IsDeleted
+                  type: int
+                  constraints:
+                    nullable: false
+                  defaultValue: 1
+                  remarks: 删除标记(1=正常、2=删除)
+
+              - column:
+                  name: DeleteUserId
+                  type: varchar(64)
+                  remarks: 删除人Id
+
+              - column:
+                  name: DeleteUserName
+                  type: varchar(64)
+                  remarks: 删除人名称
+
+              - column:
+                  name: DeleteTime
+                  type: varchar(64)
+                  remarks: 删除时间
+
+        - rollback:
+            - dropTable:
+                tableName: store_info
+                cascadeConstraints: true
+
+  - changeSet:
+      id: add-linked-info-colume
+      author: shibowen
+      changes:
+        - addColumn:
+            tableName: store_info
+            columns:
+              - column:
+                  name: MechtNo
+                  type: varchar(100)
+
+              - column:
+                  name: LinkedStore
+                  type: varchar(100)
+
+  - changeSet:
+      id: change-ele-wt-column-cons
+      author: shibowen
+      changes:
+        - dropNotNullConstraint:
+            tableName: store_info
+            columnName: EleUnitPrice
+            columnDataType: double(11,2)
+
+        - dropNotNullConstraint:
+            tableName: store_info
+            columnName: WaterUnitPrice
+            columnDataType: double(11,2)
+
+  - changeSet:
+      id: drop-store-pwd
+      author: shibowen
+      changes:
+        - dropColumn:
+            tableName: store_info
+            columnName: UseStorePwd
+
+        - dropColumn:
+            tableName: store_info
+            columnName: StorePwd

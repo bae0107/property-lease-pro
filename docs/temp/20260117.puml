@@ -1,0 +1,40 @@
+@startuml
+actor User
+participant Gateway
+participant "Service A" as A
+participant "Service B" as B
+participant IAM
+
+== 用户登录 ==
+User -> IAM : login(username, password)
+IAM -> User : USER JWT
+
+== 用户访问业务 ==
+User -> Gateway : request + USER JWT
+Gateway -> Gateway : verify USER JWT
+Gateway -> A : forward request + USER JWT
+
+== A 处理 external 接口 ==
+A -> A : verify USER JWT
+A -> A : build UserPrincipal
+
+== A 调用 B（用户态） ==
+A -> IAM : exchange(USER JWT, target=B)
+IAM -> A : INTERNAL_USER JWT
+
+A -> B : request + INTERNAL_USER JWT
+
+== B 校验 ==
+B -> B : verify INTERNAL_USER JWT
+B -> B : build InternalUserPrincipal
+B -> B : data scope check
+
+== 系统任务 ==
+A -> IAM : request SYSTEM token
+IAM -> A : INTERNAL_SYSTEM JWT
+
+A -> B : request + INTERNAL_SYSTEM JWT
+B -> B : verify SYSTEM JWT
+B -> B : allow system access
+
+@enduml

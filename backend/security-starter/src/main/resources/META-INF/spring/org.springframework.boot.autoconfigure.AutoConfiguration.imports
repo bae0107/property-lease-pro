@@ -1,0 +1,4 @@
+com.jugu.propertylease.security.autoconfigure.SecurityStarterAutoConfiguration
+com.jugu.propertylease.security.autoconfigure.servlet.ServletSecurityAutoConfiguration
+com.jugu.propertylease.security.autoconfigure.servlet.MockServletSecurityAutoConfiguration
+com.jugu.propertylease.security.autoconfigure.reactive.ReactiveSecurityAutoConfiguration

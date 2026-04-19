@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+  <artifactId>backend</artifactId>
+
+  <groupId>com.jugu.propertylease</groupId>
+  <modelVersion>4.0.0</modelVersion>
+  <modules>
+    <module>starters</module>
+    <module>common</module>
+    <module>clients</module>
+    <module>gateway</module>
+    <module>main-service</module>
+    <module>billing-service</module>
+    <module>device-service</module>
+    <module>security-starter</module>
+  </modules>
+  <name>Project Root Aggregator</name>
+  <packaging>pom</packaging>
+
+  <profiles>
+    <profile>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <configuration>
+                  <target>
+                    <echo>Building dependencies first...</echo>
+                  </target>
+                </configuration>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <id>prepare-dependencies</id>
+                <phase>process-sources</phase>
+              </execution>
+            </executions>
+            <groupId>org.apache.maven.plugins</groupId>
+            <version>3.0.0</version>
+          </plugin>
+        </plugins>
+      </build>
+      <id>parallel-build</id>
+    </profile>
+  </profiles>
+  <!-- 在聚合项目的pom.xml中 -->
+  <version>1.0.0</version>
+
+</project>

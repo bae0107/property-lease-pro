@@ -1,0 +1,295 @@
+openapi: 3.0.3
+info:
+  title: Common Components
+  description: '全系统公共 Schema 定义（v2）。
+
+    所有微服务通过相对路径引用，禁止各服务重复定义。
+
+    引用示例：$ref: ''common-components.yaml#/components/schemas/ErrorResponse''
+
+    '
+  version: 2.0.0
+paths: { }
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      description: 统一错误响应格式（扁平结构，禁止嵌套）
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: 错误码，格式 {SERVICE}_{RESOURCE}_{REASON}
+          example: IAM_USER_NOT_FOUND
+        message:
+          type: string
+          description: 人类可读的错误描述
+          example: 用户 ID 999 不存在
+        traceId:
+          type: string
+          nullable: true
+          description: 全链路追踪 ID，来源 MDC，null 时不序列化
+          example: abc123def456
+    PageRequest:
+      type: object
+      description: '通用分页查询请求。
+
+        各资源通过 allOf 继承此结构，filters 中合法的 key 值
+
+        由响应中的 tableMeta.fields[].key 动态描述。
+
+        '
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        pageNo:
+          type: integer
+          minimum: 1
+          description: 页码，从 1 开始
+          example: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: 每页大小
+          example: 20
+        filters:
+          $ref: '#/components/schemas/QueryFilter'
+    QueryFilter:
+      type: object
+      description: '通用查询过滤容器，支持三种过滤类型（全部可选，多个条件取交集）：
+
+        - stringFilters：字符串模糊匹配（LIKE %value%），对应 filterType=STRING 的字段
+
+        - idsFilters：多值 IN 匹配（IN (v1,v2,...)），对应 filterType=IDS 的字段
+
+        - enumFilters：枚举精确匹配（= value），对应 filterType=ENUM 的字段
+
+
+        合法 key 值由list-view-meta 响应中的 filters[].key 动态描述，后端同时做白名单校验。
+
+        非法 key 返回 400 COMMON_INVALID_FILTER_KEY。
+
+
+        注意：openapi-generator 配置需设置 openApiNullable=false，
+
+        避免生成 JsonNullable<T> 包装，所有 filter 字段未传时视为不过滤。
+
+        '
+      properties:
+        stringFilters:
+          type: array
+          description: 字符串模糊过滤列表（多个字段同时过滤取交集）
+          items:
+            $ref: '#/components/schemas/StringFilter'
+        idsFilters:
+          type: array
+          description: 多值 IN 过滤列表（多个字段同时过滤取交集，如同时按 id 列表和 roleId 列表过滤）
+          items:
+            $ref: '#/components/schemas/IdsFilter'
+        enumFilters:
+          type: array
+          description: 枚举精确过滤列表（多个字段同时过滤取交集）
+          items:
+            $ref: '#/components/schemas/EnumFilter'
+    StringFilter:
+      type: object
+      required:
+        - key
+        - value
+      description: 字符串字段模糊匹配（LIKE %value%）
+      properties:
+        key:
+          type: string
+          description: 字段名，须在 list-view-meta.filters[filterType=STRING].key 列表中
+          example: mobile
+        value:
+          type: string
+          minLength: 1
+          description: 模糊匹配关键词
+          example: '138'
+    IdsFilter:
+      type: object
+      required:
+        - key
+        - value
+      description: '多值 ID IN 匹配。idsFilters 是此类型的数组，支持同时对多个字段做 IN 过滤。
+
+        示例：同时过滤 id IN [1,2,3] 且 roleId IN [10,11]，则传两个 IdsFilter 对象。
+
+        '
+      properties:
+        key:
+          type: string
+          description: 字段名，须在 list-view-meta.filters[filterType=IDS].key 列表中
+          example: id
+        value:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+          example:
+            - 1
+            - 2
+            - 3
+    EnumFilter:
+      type: object
+      required:
+        - key
+        - value
+      description: 枚举字段精确匹配（值须在 list-view-meta.filters[].options[].value 列表中）
+      properties:
+        key:
+          type: string
+          description: 字段名，须在 list-view-meta.filters[filterType=ENUM].key 列表中
+          example: status
+        value:
+          type: string
+          description: 枚举值，合法值见 tableMeta.fields[].options
+          example: ACTIVE
+    PageResponse:
+      type: object
+      description: 通用分页响应基础结构。各资源通过 allOf 追加 items 字段（具体数据类型列表）。
+      required:
+        - pageNo
+        - pageSize
+        - total
+      properties:
+        pageNo:
+          type: integer
+          description: 当前页码（从 1 开始）
+          example: 1
+        pageSize:
+          type: integer
+          description: 每页大小
+          example: 20
+        total:
+          type: integer
+          format: int64
+          description: 总记录数
+          example: 100
+    FilterFieldMeta:
+      type: object
+      description: 单个可过滤字段的元数据描述，由 list-view-meta 接口返回。
+      required:
+        - key
+        - label
+        - filterType
+      properties:
+        key:
+          type: string
+          description: 字段标识（QueryFilter 各 filter 的 key 值必须在此列表中）
+          example: status
+        label:
+          type: string
+          description: 字段显示名（前端过滤器标签文字）
+          example: 账号状态
+        filterType:
+          type: string
+          description: '过滤类型，决定前端控件和后端 SQL 匹配方式：
+
+            STRING → LIKE %value%
+
+            IDS    → IN (v1, v2, ...)
+
+            ENUM   → = value（枚举精确匹配）
+
+            '
+          enum:
+            - STRING
+            - IDS
+            - ENUM
+        options:
+          type: array
+          nullable: true
+          description: filterType=ENUM 时必填，其他类型为 null
+          items:
+            $ref: '#/components/schemas/FilterOption'
+    FilterOption:
+      type: object
+      description: 枚举过滤下拉选项
+      required:
+        - value
+        - label
+      properties:
+        value:
+          type: string
+          description: 传给后端 EnumFilter.value 的实际值
+          example: ACTIVE
+        label:
+          type: string
+          description: 前端下拉框显示文本
+          example: 正常
+    BatchRequest:
+      type: object
+      description: 通用批量操作请求（单个操作传 1 个 id，批量传多个）
+      required:
+        - ids
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+          description: 操作目标 ID 列表（最少 1 个）
+          example:
+            - 1
+            - 2
+            - 3
+    ListViewMeta:
+      type: object
+      description: 列表视图元数据。前端首次进入页面或主动刷新时单独拉取，用于动态渲染过滤器和列表列。
+      required:
+        - filters
+        - columns
+      properties:
+        filters:
+          type: array
+          description: 可过滤字段元数据列表
+          items:
+            $ref: '#/components/schemas/FilterFieldMeta'
+        columns:
+          type: array
+          description: 列表列元数据列表
+          items:
+            $ref: '#/components/schemas/ColumnMeta'
+    ColumnMeta:
+      type: object
+      description: 单个列表列的元数据描述
+      required:
+        - key
+        - label
+        - valueType
+        - sortable
+        - visible
+      properties:
+        key:
+          type: string
+          description: 列标识
+          example: userName
+        label:
+          type: string
+          description: 列显示名
+          example: 用户名
+        valueType:
+          type: string
+          description: 列值类型，决定前端展示方式
+          enum:
+            - STRING
+            - LONG
+            - ENUM
+            - DATETIME
+            - BOOLEAN
+        sortable:
+          type: boolean
+          description: 是否支持排序
+          example: true
+        visible:
+          type: boolean
+          description: 默认是否展示
+          example: true

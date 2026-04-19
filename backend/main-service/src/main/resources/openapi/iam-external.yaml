@@ -1,0 +1,1565 @@
+openapi: 3.0.3
+info:
+  title: Main Service API
+  description: 'main-service 对外接口契约 v3。
+
+
+    权限规则：
+
+    - /auth/**：登录/绑定/刷新/登出，无需 JWT，无 x-required-permission
+
+    - /iam/**：需要有效 Service JWT，除 auth 外的业务接口需要声明 x-required-permission；默认归属 builtin
+    角色时再额外声明 x-builtin-roles
+
+
+    命名规范：
+
+    - 业务对象直接以业务名命名（不加 VO/DTO 后缀）
+
+    - 分页响应通过 allOf 继承 PageResponse，追加 items 字段
+
+
+    openapi-generator 配置要求：
+
+    - openApiNullable=false（避免 JsonNullable 包装）
+
+    - useSpringBoot3=true
+
+    - delegatePattern=true
+
+
+    $ref 路径：../../../../../common/src/main/resources/openapi/common-components.yaml
+
+    '
+  version: 3.0.0
+servers:
+  - url: /
+    description: Gateway StripPrefix=2 后，Controller 收到的根路径
+tags:
+  - name: auth
+    description: 认证（登录 / 绑定 / 刷新 / 登出）
+  - name: iam-users
+    description: 用户管理
+  - name: iam-roles
+    description: 角色管理
+  - name: iam-permissions
+    description: 权限查询
+  - name: iam-wechat
+    description: 已登录用户微信绑定管理
+  - name: iam-data-scope
+    description: 用户数据权限管理（适用于需要区域/门店数据权限的用户，如 STAFF / CONTRACTOR）
+paths:
+  /auth/login/password:
+    post:
+      tags:
+        - auth
+      operationId: passwordLogin
+      summary: 账号密码登录（STAFF / CONTRACTOR）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordLoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+        '401':
+          description: 凭证错误
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '403':
+          description: 登录方式不允许 / 账号已禁用
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+  /auth/wechat/miniprogram/login:
+    post:
+      tags:
+        - auth
+      operationId: wechatMiniprogramLogin
+      summary: 微信小程序登录（TENANT / STAFF）
+      description: 'Identity 已存在 → 直接签发 JWT（200）。
+
+        Identity 不存在 + 有 encryptedData/iv → 服务端解密手机号 → 匹配用户 → 绑定 → 签发 JWT（200）。
+
+        Identity 不存在 + 无 encryptedData（STAFF）→ 403 + bindToken，引导用户名密码两步绑定。
+
+        TENANT 无手机号 → 403 IAM_AUTH_WECHAT_PHONE_REQUIRED（无降级路径）。
+
+        '
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatMiniprogramLoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+        '400':
+          description: 微信 code 无效 / 手机号解密失败
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '403':
+          description: 需要两步绑定 / 用户未注册 / 不支持此登录方式 / 账号已禁用
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WechatBindRequiredResponse'
+                  - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+                discriminator:
+                  propertyName: code
+                  mapping:
+                    IAM_AUTH_WECHAT_BIND_REQUIRED: '#/components/schemas/WechatBindRequiredResponse'
+  /auth/wechat/miniprogram/bind:
+    post:
+      tags:
+        - auth
+      operationId: wechatMiniprogramBind
+      summary: 微信小程序两步绑定第二步（STAFF 用用户名密码完成绑定）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatBindWithCredentialRequest'
+      responses:
+        '200':
+          description: 绑定成功并登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+        '401':
+          description: bindToken 无效 / 凭证错误
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '403':
+          description: 用户类型不允许 / 账号已禁用
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '409':
+          description: 该微信已绑定其他账号
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+  /auth/wechat/web/login:
+    post:
+      tags:
+        - auth
+      operationId: wechatWebLogin
+      summary: 微信 Web 扫码登录（STAFF / 已绑定 TENANT）
+      description: 'Identity 已存在 → 直接签发 JWT（200）。
+
+        STAFF 首次 → 403 + bindToken，引导用户名密码两步绑定。
+
+        TENANT 首次 Web 扫码 → 403 IAM_AUTH_USER_NOT_REGISTERED（Web 不支持 TENANT 首次绑定）。
+
+        '
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatWebLoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+        '400':
+          description: 微信 code 无效
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '403':
+          description: 需要两步绑定 / 用户未注册 / 账号已禁用
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WechatBindRequiredResponse'
+                  - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+  /auth/wechat/web/bind:
+    post:
+      tags:
+        - auth
+      operationId: wechatWebBind
+      summary: 微信 Web 扫码两步绑定第二步（STAFF）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatBindWithCredentialRequest'
+      responses:
+        '200':
+          description: 绑定成功并登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+        '401':
+          description: bindToken 无效 / 凭证错误
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '403':
+          description: 用户类型不允许（仅 STAFF）/ 账号已禁用
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '409':
+          description: 该微信已绑定其他账号
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+  /auth/refresh:
+    post:
+      tags:
+        - auth
+      operationId: refreshToken
+      summary: 刷新 Access Token（Refresh Token Rotation）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: 刷新成功，旧 refreshToken 立即失效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResult'
+        '401':
+          description: refreshToken 不存在或已过期
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '403':
+          description: 账号已禁用
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      operationId: logout
+      summary: 登出（幂等，refreshToken 不存在也返回 200）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: 登出成功
+  /iam/users:
+    post:
+      tags:
+        - iam-users
+      operationId: createUser
+      summary: 创建 STAFF / CONTRACTOR 用户（创建时必须指定至少一个角色）
+      x-required-permission: iam:user:create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        '400':
+          description: 参数校验失败 / 不允许创建该类型用户
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '409':
+          description: 用户名 / 手机号 / email 冲突
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 创建用户
+      x-permission-description: 创建 STAFF 或 CONTRACTOR 用户，并在创建时绑定角色与数据权限
+  /iam/users/query:
+    post:
+      tags:
+        - iam-users
+      operationId: queryUsers
+      summary: 分页查询用户列表
+      description: 支持过滤字段由 GET /iam/users/list-view-meta 返回的 filters 动态描述。
+      x-required-permission: iam:user:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPageResult'
+      x-permission-name: 查询用户列表
+      x-permission-description: 分页查询用户列表及筛选信息
+  /iam/users/{id}:
+    get:
+      tags:
+        - iam-users
+      operationId: getUser
+      summary: 查询单个用户（含角色列表和数据权限）
+      x-required-permission: iam:user:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 查询用户详情
+      x-permission-description: 查询单个用户详情，返回角色列表和数据权限
+  /iam/users/{id}/status:
+    put:
+      tags:
+        - iam-users
+      operationId: updateUserStatus
+      summary: 修改单个用户状态
+      x-required-permission: iam:user:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserStatusRequest'
+      responses:
+        '200':
+          description: 修改成功
+        '400':
+          description: 不允许禁用自身 / SYSTEM 用户不可修改
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 修改用户状态
+      x-permission-description: 修改单个用户的启用或停用状态
+  /iam/users/{id}/password:
+    put:
+      tags:
+        - iam-users
+      operationId: resetUserPassword
+      summary: 重置用户密码（适用于 STAFF / CONTRACTOR）
+      description: 重置指定用户的登录密码。仅适用于使用密码登录的用户类型，不适用于 SYSTEM 用户。
+      x-required-permission: iam:user:password:reset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetUserPasswordRequest'
+      responses:
+        '200':
+          description: 重置成功
+        '400':
+          description: 用户类型不支持密码登录 / 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 重置用户密码
+      x-permission-description: 重置指定用户的登录密码
+  /iam/users/batch/status:
+    put:
+      tags:
+        - iam-users
+      operationId: batchUpdateUserStatus
+      summary: 批量修改用户状态（含单个，ids 传 1 个即为单个操作）
+      description: 约束：不允许包含 SYSTEM 用户；不允许包含操作者自身（禁用场景）。
+      x-required-permission: iam:user:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchUpdateUserStatusRequest'
+      responses:
+        '200':
+          description: 修改成功
+        '400':
+          description: 包含不可修改的用户 / 不允许禁用自身
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 批量修改用户状态
+      x-permission-description: 批量修改多个用户的启用或停用状态
+  /iam/users/{id}/roles:
+    put:
+      tags:
+        - iam-users
+      operationId: updateUserRoles
+      summary: 覆写用户角色（全量替换）
+      description: '约束：
+
+        - 至少需保留一个角色（不允许传空数组）
+
+        - 所有角色必须与用户的 userType 保持一致
+
+        - BUILTIN 用户不允许通过此接口调整默认角色绑定'
+      x-required-permission: iam:user:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRolesRequest'
+      responses:
+        '200':
+          description: 更新成功，返回含新角色的用户详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        '400':
+          description: 用户类型与角色类型不匹配 / 不允许清空角色
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 用户或角色不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 修改用户角色
+      x-permission-description: 全量替换指定用户绑定的角色列表
+  /iam/users/{id}/data-scope:
+    get:
+      tags:
+        - iam-data-scope
+      operationId: getUserDataScope
+      summary: 查询用户数据权限（适用于 STAFF / CONTRACTOR）
+      x-required-permission: iam:user:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功，TENANT / SYSTEM 通常返回空 scopes 列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDataScope'
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 查询用户数据权限
+      x-permission-description: 查询指定用户当前绑定的数据权限范围
+    put:
+      tags:
+        - iam-data-scope
+      operationId: updateUserDataScope
+      summary: 覆写用户数据权限（全量替换，适用于 STAFF / CONTRACTOR）
+      description: '每次调用全量替换用户的数据权限记录。
+
+        scopeType=ALL 表示该维度下拥有全部权限，resourceIds 传 null 或空数组。
+
+        scopeType=SPECIFIC 时 resourceIds 必填且至少一个。
+
+        维度与用户所属角色的 requiredDataScopeDimension 必须匹配，否则 400。'
+      x-required-permission: iam:user:scope:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserDataScopeRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDataScope'
+        '400':
+          description: 用户类型不支持数据权限 / 维度与角色不匹配 / 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 修改用户数据权限
+      x-permission-description: 全量替换指定用户的数据权限范围
+  /iam/roles:
+    post:
+      tags:
+        - iam-roles
+      operationId: createRole
+      summary: 创建自定义角色（roleType 固定为 STAFF，sourceType 固定为 CUSTOM）
+      x-required-permission: iam:role:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '409':
+          description: 角色 code 已存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 创建角色
+      x-permission-description: 创建自定义 STAFF 角色
+  /iam/roles/query:
+    post:
+      tags:
+        - iam-roles
+      operationId: queryRoles
+      summary: 分页查询角色列表
+      description: 支持过滤字段由 GET /iam/roles/list-view-meta 返回的 filters 动态描述。
+      x-required-permission: iam:role:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolePageResult'
+      x-permission-name: 查询角色列表
+      x-permission-description: 分页查询角色列表及筛选信息
+  /iam/roles/{id}:
+    get:
+      tags:
+        - iam-roles
+      operationId: getRole
+      summary: 查询单个角色详情（含权限列表）
+      x-required-permission: iam:role:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleDetail'
+        '404':
+          description: 角色不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 查询角色详情
+      x-permission-description: 查询单个角色详情并返回当前权限列表
+    put:
+      tags:
+        - iam-roles
+      operationId: updateRole
+      summary: 修改角色名称 / 描述（sourceType=BUILTIN 的角色禁止修改，code 不可修改）
+      x-required-permission: iam:role:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          description: BUILTIN 角色不可修改
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 角色不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 修改角色
+      x-permission-description: 修改自定义角色的名称和描述
+  /iam/roles/batch-delete:
+    post:
+      tags:
+        - iam-roles
+      operationId: batchDeleteRoles
+      summary: 批量删除自定义角色（sourceType=BUILTIN 的角色禁止删除，有用户绑定的角色禁止删除）
+      description: ids 传 1 个为单个操作，传多个为批量操作。使用 POST 而非 DELETE with body，避免代理层兼容问题。
+      x-required-permission: iam:role:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/BatchRequest
+      responses:
+        '200':
+          description: 删除成功
+        '400':
+          description: 包含 sourceType=BUILTIN 的角色
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 角色不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '409':
+          description: 包含已分配给用户的角色
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 删除角色
+      x-permission-description: 批量删除未被用户绑定的自定义角色
+  /iam/roles/{id}/permissions:
+    put:
+      tags:
+        - iam-roles
+      operationId: updateRolePermissions
+      summary: 覆写角色权限（sourceType=BUILTIN 的角色禁止修改）
+      x-required-permission: iam:role:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRolePermissionsRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleDetail'
+        '400':
+          description: sourceType=BUILTIN 的角色权限不可修改
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 角色或权限不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 修改角色权限
+      x-permission-description: 全量替换自定义角色的功能权限列表
+  /iam/permissions/query:
+    post:
+      tags:
+        - iam-permissions
+      operationId: queryPermissions
+      summary: 分页查询有效权限列表（已软删除的不返回，）
+      description: 支持过滤字段由 GET /iam/permissions/list-view-meta 返回的 filters 动态描述。
+      x-required-permission: iam:permission:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionPageResult'
+      x-permission-name: 查询权限列表
+      x-permission-description: 分页查询当前有效的功能权限列表
+  /iam/users/me/wechat/bind:
+    post:
+      tags:
+        - iam-wechat
+      operationId: bindWechat
+      summary: 已登录用户主动绑定微信（STAFF）
+      description: TENANT 绑定在首次小程序登录时自动完成；CONTRACTOR 当前不使用此接口。
+      x-required-permission: iam:wechat:bind
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatBindRequest'
+      responses:
+        '200':
+          description: 绑定成功
+        '400':
+          description: 微信 code 无效
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '403':
+          description: TENANT / CONTRACTOR 不可调用此接口
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '409':
+          description: 该微信已绑定其他账号
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 绑定微信
+      x-permission-description: 已登录 STAFF 用户主动绑定微信身份
+    delete:
+      tags:
+        - iam-wechat
+      operationId: unbindWechat
+      summary: 已登录用户解绑微信（微信是唯一登录方式时不允许解绑）
+      x-required-permission: iam:wechat:unbind
+      responses:
+        '200':
+          description: 解绑成功
+        '400':
+          description: 不允许解绑最后一种登录方式
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+      x-permission-name: 解绑微信
+      x-permission-description: 已登录 STAFF 用户解绑已绑定的微信身份
+  /iam/users/list-view-meta:
+    get:
+      tags:
+        - iam-users
+      operationId: getUsersListViewMeta
+      summary: 查询用户列表视图元数据
+      description: 前端首次进入页面或主动刷新时调用，返回过滤器和列表列定义。
+      x-required-permission: iam:user:read
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ListViewMeta
+  /iam/roles/list-view-meta:
+    get:
+      tags:
+        - iam-roles
+      operationId: getRolesListViewMeta
+      summary: 查询角色列表视图元数据
+      description: 前端首次进入页面或主动刷新时调用，返回过滤器和列表列定义。
+      x-required-permission: iam:role:read
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ListViewMeta
+  /iam/permissions/list-view-meta:
+    get:
+      tags:
+        - iam-permissions
+      operationId: getPermissionsListViewMeta
+      summary: 查询权限列表视图元数据
+      description: 前端首次进入页面或主动刷新时调用，返回过滤器和列表列定义。
+      x-required-permission: iam:permission:read
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ListViewMeta
+components:
+  schemas:
+    WechatBindRequiredResponse:
+      description: '微信两步绑定触发响应（HTTP 403）。
+
+        allOf 合并 ErrorResponse 字段，openapi-generator 生成扁平类（所有字段内联）。
+
+        '
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        - type: object
+          required:
+            - bindToken
+          properties:
+            bindToken:
+              type: string
+              description: 微信身份临时凭证，5 分钟有效，一次性消费
+              example: 550e8400-e29b-41d4-a716-446655440000
+    UserType:
+      type: string
+      enum:
+        - STAFF
+        - TENANT
+        - CONTRACTOR
+        - SYSTEM
+      description: 用户类型
+    UserStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+      description: 用户账号状态
+    UserSource:
+      type: string
+      description: '用户创建渠道：
+
+        - MANUAL：管理员通过 /iam/users 接口手动创建 STAFF / CONTRACTOR 用户
+
+        - WECHAT：微信身份绑定接入来源（通常用于已存在用户首次完成微信绑定）
+
+        - SYSTEM_INIT：系统初始化创建内置用户
+
+        - 业务系统标识（如 BILLING_SYSTEM、DEVICE_SYSTEM）：业务系统通过内部接口创建用户'
+      example: MANUAL
+    RoleType:
+      type: string
+      enum:
+        - STAFF
+        - TENANT
+        - CONTRACTOR
+        - SYSTEM
+      description: '角色域类型：
+
+        - STAFF：内部员工角色域
+
+        - TENANT：租户用户角色域
+
+        - CONTRACTOR：外部协作人员角色域
+
+        - SYSTEM：系统内部程序角色域'
+    DataScopeDimension:
+      type: string
+      enum:
+        - AREA
+        - STORE
+      description: '数据权限维度：
+
+        - AREA：区域维度
+
+        - STORE：门店维度
+
+        层级关系：区域(area) > 门店(store)，一个区域下有多个门店'
+    DataScopeType:
+      type: string
+      enum:
+        - ALL
+        - SPECIFIC
+      description: '数据权限范围类型：
+
+        - ALL：全部（无需指定具体资源 ID，新增区域/门店后自动生效）
+
+        - SPECIFIC：指定具体资源（需传 resourceIds）
+
+        '
+    PasswordLoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: admin
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          example: Admin@2026!
+    WechatMiniprogramLoginRequest:
+      type: object
+      required:
+        - code
+        - appId
+      properties:
+        code:
+          type: string
+          description: wx.login() 返回的临时登录凭证
+          minLength: 1
+        appId:
+          type: string
+          description: 小程序 AppID
+          minLength: 1
+        encryptedData:
+          type: string
+          nullable: true
+          description: wx.getPhoneNumber() 返回的加密手机号（首次登录建议传）
+        iv:
+          type: string
+          nullable: true
+          description: 加密算法初始向量，与 encryptedData 同时传
+    WechatWebLoginRequest:
+      type: object
+      required:
+        - code
+        - appId
+      properties:
+        code:
+          type: string
+          description: 微信 OAuth2 回调中的 code（服务端 code exchange）
+          minLength: 1
+        appId:
+          type: string
+          description: 网页应用 AppID
+          minLength: 1
+    WechatBindWithCredentialRequest:
+      type: object
+      required:
+        - bindToken
+        - username
+        - password
+      description: 两步绑定第二步（小程序 / Web 通用）
+      properties:
+        bindToken:
+          type: string
+          description: 第一步返回的微信临时凭证（5 分钟有效，一次性）
+          minLength: 1
+        username:
+          type: string
+          minLength: 1
+          maxLength: 100
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+    WechatBindRequest:
+      type: object
+      required:
+        - code
+        - appId
+      description: 已登录用户主动绑定微信
+      properties:
+        code:
+          type: string
+          description: wx.login() code 或 Web OAuth code
+          minLength: 1
+        appId:
+          type: string
+          minLength: 1
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+    LogoutRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+    LoginResult:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - expiresIn
+        - userId
+        - userType
+      properties:
+        accessToken:
+          type: string
+          description: User JWT（HS256）
+        refreshToken:
+          type: string
+          description: Refresh Token（UUID）
+        expiresIn:
+          type: integer
+          description: accessToken 有效期（秒）
+          example: 1800
+        userId:
+          type: integer
+          format: int64
+          example: 42
+        userType:
+          $ref: '#/components/schemas/UserType'
+    RefreshResult:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+          description: 新 Refresh Token（旧的已作废）
+        expiresIn:
+          type: integer
+          example: 1800
+    ResetUserPasswordRequest:
+      type: object
+      required:
+        - password
+      description: 管理员重置指定用户登录密码
+      properties:
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          description: 新密码（至少 8 位，含大小写字母和数字）
+          example: Temp@2026!
+    UpdateUserStatusRequest:
+      type: object
+      required:
+        - status
+      description: 单个用户状态变更
+      properties:
+        status:
+          $ref: '#/components/schemas/UserStatus'
+    BatchUpdateUserStatusRequest:
+      type: object
+      required:
+        - ids
+        - status
+      description: 批量用户状态变更（ids 传 1 个为单个操作）
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+          example:
+            - 10
+            - 11
+            - 12
+        status:
+          $ref: '#/components/schemas/UserStatus'
+    UpdateUserRolesRequest:
+      type: object
+      required:
+        - roleIds
+      properties:
+        roleIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+          description: 角色 ID 列表，至少一个（不允许清空，如需清空请删除用户）
+          example:
+            - 1
+            - 2
+    User:
+      type: object
+      required:
+        - id
+        - userType
+        - sourceType
+        - status
+        - source
+        - createdAt
+        - updatedAt
+      description: 用户基础信息
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 42
+        userType:
+          $ref: '#/components/schemas/UserType'
+        sourceType:
+          $ref: '#/components/schemas/SourceType'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        realName:
+          type: string
+          nullable: true
+          description: 真实姓名
+          example: 张三
+        mobile:
+          type: string
+          example: '13800138000'
+        email:
+          type: string
+          nullable: true
+          example: zhangsan@company.com
+        source:
+          $ref: '#/components/schemas/UserSource'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-03-24T10:00:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-03-24T10:00:00.000Z'
+        userName:
+          type: string
+          nullable: true
+          description: 登录用户名，存在 password 身份时返回
+          example: zhangsan
+    UserDetail:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          required:
+            - roles
+          description: 用户详情（含角色列表和数据权限；对需要区域/门店数据权限的用户，如 STAFF / CONTRACTOR，dataScope
+            通常有值）
+          properties:
+            roles:
+              type: array
+              items:
+                $ref: '#/components/schemas/Role'
+            dataScope:
+              $ref: '#/components/schemas/UserDataScope'
+              nullable: true
+              description: 数据权限；对需要区域/门店数据权限的用户，如 STAFF / CONTRACTOR，通常有值，TENANT / SYSTEM
+                通常为 null
+    UserPageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/User'
+    DataScopeItem:
+      type: object
+      required:
+        - dimension
+        - scopeType
+      description: 单条数据权限范围记录
+      properties:
+        dimension:
+          $ref: '#/components/schemas/DataScopeDimension'
+        scopeType:
+          $ref: '#/components/schemas/DataScopeType'
+        resourceIds:
+          type: array
+          nullable: true
+          items:
+            type: integer
+            format: int64
+          description: scopeType=SPECIFIC 时为区域/门店 ID 列表；scopeType=ALL 时为 null
+          example:
+            - 101
+            - 102
+            - 103
+    UserDataScope:
+      type: object
+      required:
+        - scopes
+      description: 用户数据权限汇总
+      properties:
+        scopes:
+          type: array
+          description: 数据权限列表（每个维度最多一条，可同时有 AREA 和 STORE 两条）
+          items:
+            $ref: '#/components/schemas/DataScopeItem'
+    UpdateUserDataScopeRequest:
+      type: object
+      required:
+        - scopes
+      description: '覆写用户数据权限请求（全量替换）。
+
+        scopeType=ALL 时 resourceIds 传 null 或空数组。
+
+        scopeType=SPECIFIC 时 resourceIds 至少一个。
+
+        dimension 须与用户所属角色的 requiredDataScopeDimension 匹配。'
+      properties:
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataScopeItem'
+    CreateRoleRequest:
+      type: object
+      required:
+        - name
+        - code
+      description: 创建自定义角色，roleType 固定为 STAFF，sourceType 固定为 CUSTOM
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 区域经理
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: ^[A-Z][A-Z0-9_]*$
+          description: 大写下划线，全局唯一，创建后不可修改
+          example: AREA_MANAGER
+        description:
+          type: string
+          nullable: true
+          maxLength: 200
+        requiredDataScopeDimension:
+          $ref: '#/components/schemas/DataScopeDimension'
+          nullable: true
+          description: 绑定该角色到用户时，要求用户按哪个维度配置数据权限；null 表示该角色不要求区域/门店数据权限
+    UpdateRoleRequest:
+      type: object
+      description: 仅允许修改 name 和 description，code / roleType / sourceType / requiredDataScopeDimension
+        不可改
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        description:
+          type: string
+          nullable: true
+          maxLength: 200
+    UpdateRolePermissionsRequest:
+      type: object
+      required:
+        - permissionIds
+      properties:
+        permissionIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: 权限 ID 列表，全量替换
+    Role:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - roleType
+        - sourceType
+      description: 角色基础信息
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: 系统管理员
+        code:
+          type: string
+          example: SYSTEM_ADMIN
+        roleType:
+          $ref: '#/components/schemas/RoleType'
+        sourceType:
+          $ref: '#/components/schemas/SourceType'
+        requiredDataScopeDimension:
+          $ref: '#/components/schemas/DataScopeDimension'
+          nullable: true
+          description: 绑定该角色到用户时，要求用户按哪个维度配置数据权限；null 表示该角色不要求区域/门店数据权限
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    RoleDetail:
+      allOf:
+        - $ref: '#/components/schemas/Role'
+        - type: object
+          required:
+            - permissions
+          properties:
+            permissions:
+              type: array
+              items:
+                $ref: '#/components/schemas/Permission'
+    RolePageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Role'
+    Permission:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - resource
+        - action
+      description: 权限基础信息（来源于 OpenAPI yaml 的 x-required-permission / x-permission-name
+        / x-permission-description，由 PermissionSyncRunner 维护）
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+          description: 权限码，格式 {resource}:{action}（全小写）
+          example: iam:user:read
+        name:
+          type: string
+          description: 显示名称
+          example: 查询用户列表
+        resource:
+          type: string
+          description: 资源标识，等于权限码最后一个冒号前的部分
+          example: iam:user
+        action:
+          type: string
+          description: 操作标识，等于权限码最后一个冒号后的部分
+          example: read
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PermissionPageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Permission'
+    CreatableUserType:
+      type: string
+      enum:
+        - STAFF
+        - CONTRACTOR
+      description: 可通过当前管理接口创建的用户类型
+    SourceType:
+      type: string
+      enum:
+        - BUILTIN
+        - CUSTOM
+      description: '对象来源：
+
+        - BUILTIN：系统内置对象
+
+        - CUSTOM：运行期创建的自定义对象'
+    CreateUserRequest:
+      type: object
+      required:
+        - userType
+        - mobile
+        - username
+        - password
+        - roleIds
+      description: 创建 STAFF / CONTRACTOR 用户，创建时必须指定至少一个角色，并按角色要求绑定数据权限
+      properties:
+        userType:
+          $ref: '#/components/schemas/CreatableUserType'
+        realName:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: 真实姓名
+          example: 张三
+        mobile:
+          type: string
+          pattern: ^1[3-9]\d{9}$
+          description: 手机号，全局唯一，必填
+          example: '13800138000'
+        email:
+          type: string
+          nullable: true
+          format: email
+          maxLength: 200
+          description: 邮箱，全局唯一，选填
+          example: zhangsan@company.com
+        username:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: 登录用户名，全局唯一
+          example: zhangsan
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          description: 登录密码（至少 8 位，含大小写字母和数字）
+          example: Pass@2026!
+        roleIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+          description: 角色 ID 列表，创建时必须至少指定一个角色，且角色类型必须与 userType 一致
+          example:
+            - 1
+        scopes:
+          type: array
+          nullable: true
+          description: 当所选角色要求区域/门店数据权限时，需同时提交匹配维度的数据权限
+          items:
+            $ref: '#/components/schemas/DataScopeItem'
+  securitySchemes:
+    serviceJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service JWT，由 Gateway 注入 X-Service-Token，security-starter 解析
+security:
+  - serviceJwt: [ ]

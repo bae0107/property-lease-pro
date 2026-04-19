@@ -1,0 +1,11 @@
+@startuml
+participant Scheduler
+participant ServiceA
+participant ServiceB
+
+Scheduler -> ServiceA : Trigger Job
+ServiceA -> ServiceB : internal/system/**\nService-Token
+ServiceB -> ServiceB : Verify Service-Token
+ServiceB -> ServiceB : System Context (No Data Filter)
+ServiceB -> ServiceA : Result
+@enduml

@@ -1,0 +1,12 @@
+@startuml
+actor User
+participant Gateway
+participant Service
+
+User -> Gateway : Request + User-JWT
+Gateway -> Gateway : Verify JWT
+Gateway -> Service : Forward Request
+Service -> Service : Permission Check
+Service -> Service : Data Permission Filter
+Service -> User : Response
+@enduml
