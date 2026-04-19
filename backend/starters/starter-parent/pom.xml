@@ -194,6 +194,10 @@
   <packaging>pom</packaging>
 
   <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+
     <apiPackage.isModelOnly>true</apiPackage.isModelOnly>
     <apiPackage.isServiceOnly>false</apiPackage.isServiceOnly>
     <apiPackage.name>com.jugu.propertylease.api</apiPackage.name>

@@ -13,8 +13,6 @@
     <module>clients</module>
     <module>gateway</module>
     <module>main-service</module>
-    <module>billing-service</module>
-    <module>device-service</module>
     <module>security-starter</module>
   </modules>
   <name>Project Root Aggregator</name>

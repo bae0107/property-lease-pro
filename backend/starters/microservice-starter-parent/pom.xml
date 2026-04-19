@@ -22,14 +22,6 @@
                     <userType>java.time.OffsetDateTime</userType>
                   </forcedType>
 
-                  <forcedType>
-                    <converter>com.jugu.propertylease.main.propertymgr.JsonToIntegerSetConverter
-                    </converter>
-                    <includeExpression>building_info\.Floors</includeExpression>
-                    <!-- 精确匹配 building_info 表的 Floors 字段（注意大小写） -->
-                    <includeTypes>JSON</includeTypes>
-                    <userType>java.util.Set&lt;java.lang.Integer&gt;</userType>
-                  </forcedType>
                 </forcedTypes>
                 <includes>.*</includes>
                 <name>org.jooq.meta.extensions.liquibase.LiquibaseDatabase</name>

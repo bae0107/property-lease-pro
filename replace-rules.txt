@@ -1,2 +1,0 @@
-regex:aliyun\.access\.key\.id=.*==>aliyun.access.key.id=YOUR_PLACEHOLDER_ID
-regex:aliyun\.access\.key\.secret=.*==>aliyun.access.key.secret=YOUR_PLACEHOLDER_SECRET

@@ -1,4 +1,0 @@
-include:
-  - ../../infra/docker-compose/docker-compose.base.yaml
-
-
