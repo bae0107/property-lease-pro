@@ -203,22 +203,58 @@ components:
             - STRING
             - IDS
             - ENUM
+        selectionMode:
+          type: string
+          nullable: true
+          description: 选择模式。STRING 类型通常为 null；ENUM/IDS 可为 SINGLE 或 MULTIPLE
+          enum:
+            - SINGLE
+            - MULTIPLE
+        valueType:
+          type: string
+          nullable: true
+          description: 值类型，指导前端将选项 value 转换为请求参数类型（例如 IDS 通常为 LONG）
+          enum:
+            - STRING
+            - LONG
+        dependsOn:
+          type: array
+          nullable: true
+          description: 当前过滤器依赖的上游过滤器 key 列表（例如 storeId 依赖 areaId）
+          items:
+            type: string
+        showAllWhenParentEmpty:
+          type: boolean
+          nullable: true
+          description: 依赖过滤器均为空时，是否展示当前过滤器全部选项。默认 true。
+          example: true
+        allowedOptionValuesByParent:
+          type: object
+          nullable: true
+          description: >
+            单父依赖场景下的选项约束映射。key 为上游过滤器选中值（字符串），
+            value 为当前过滤器允许显示的 options.value 列表。
+            例如：{"1":["1","2"],"2":["3","4"]} 表示 areaId=1 时 storeId 仅可选 1/2。
+          additionalProperties:
+            type: array
+            items:
+              type: string
         options:
           type: array
           nullable: true
-          description: filterType=ENUM 时必填，其他类型为 null
+          description: 可选项列表。ENUM 必填；IDS 在下拉场景下也可返回，用于展示 value/label。
           items:
             $ref: '#/components/schemas/FilterOption'
     FilterOption:
       type: object
-      description: 枚举过滤下拉选项
+      description: 下拉选项（可用于 ENUM 或 IDS 类型）
       required:
         - value
         - label
       properties:
         value:
           type: string
-          description: 传给后端 EnumFilter.value 的实际值
+          description: 选项实际值（前端可按 FilterFieldMeta.valueType 转换）
           example: ACTIVE
         label:
           type: string
