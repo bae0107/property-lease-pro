@@ -39,6 +39,10 @@
         remarks="账号状态：ACTIVE / INACTIVE">
         <constraints nullable="false"/>
       </column>
+      <column name="auth_version" type="INT" defaultValueNumeric="0"
+        remarks="认证版本号。重置密码/状态变更/角色变更/数据权限变更/软删除时递增，用于旧 token 失效">
+        <constraints nullable="false"/>
+      </column>
       <column name="user_name" type="VARCHAR(100)"
         remarks="登录用户名，对应 OpenAPI username，必填，全局唯一">
         <constraints nullable="false"/>
@@ -63,6 +67,18 @@
       <column name="updated_at" type="DATETIME(3)">
         <constraints nullable="false"/>
       </column>
+      <column name="deleted_at" type="DATETIME(3)"
+        remarks="软删除时间，NULL=未删除"/>
+      <column name="deleted_by" type="BIGINT"
+        remarks="执行删除的操作者 user_id"/>
+      <column name="delete_reason" type="VARCHAR(200)"
+        remarks="删除原因"/>
+      <column name="deleted_user_name" type="VARCHAR(120)"
+        remarks="删除时保留原 user_name 用于审计（允许复用登录名）"/>
+      <column name="deleted_mobile" type="VARCHAR(40)"
+        remarks="删除时保留原 mobile 用于审计（允许复用手机号）"/>
+      <column name="deleted_email" type="VARCHAR(220)"
+        remarks="删除时保留原 email 用于审计（允许复用邮箱）"/>
     </createTable>
 
     <addUniqueConstraint tableName="iam_user" columnNames="user_name"
@@ -106,6 +122,8 @@
       <column name="created_at" type="DATETIME(3)">
         <constraints nullable="false"/>
       </column>
+      <column name="deleted_at" type="DATETIME(3)"
+        remarks="软删除时间，NULL=有效"/>
     </createTable>
 
     <addUniqueConstraint tableName="iam_identity"
