@@ -169,7 +169,7 @@ public final class IamUsersPageResource implements JooqPageResourceDefinition<Us
 
   @Override
   public Condition baseCondition() {
-    return DSL.trueCondition();
+    return IAM_USER.DELETED_AT.isNull();
   }
 
   @Override
