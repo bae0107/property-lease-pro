@@ -1,6 +1,7 @@
 package com.jugu.propertylease.main.iam.service;
 
 import static com.jugu.propertylease.main.jooq.Tables.IAM_CREDENTIAL;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
@@ -11,8 +12,11 @@ import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.jooq.DSLContext;
+import org.jooq.Record2;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +44,21 @@ public class UserMutationService {
     if (request == null) {
       throw new IllegalArgumentException("Patch request is required");
     }
+    Record2<String, String> userBase = dsl.select(IAM_USER.USER_TYPE, IAM_USER.SOURCE_TYPE)
+        .from(IAM_USER)
+        .where(IAM_USER.ID.eq(userId))
+        .and(IAM_USER.DELETED_AT.isNull())
+        .fetchOne();
+    if (userBase == null) {
+      throw new IllegalArgumentException("User not found");
+    }
+    if (!"STAFF".equals(userBase.value1())) {
+      throw new IllegalArgumentException("Only STAFF users are supported by this mutation flow");
+    }
+    if ("BUILTIN".equals(userBase.value2())) {
+      throw new IllegalArgumentException("BUILTIN users are not allowed to be modified");
+    }
+
     if (dsl.fetchExists(dsl.selectOne().from(IAM_USER)
         .where(IAM_USER.ID.eq(userId))
         .and(IAM_USER.DELETED_AT.isNull())) == false) {
@@ -95,6 +114,12 @@ public class UserMutationService {
       if (request.getRoleIds().isEmpty()) {
         throw new IllegalArgumentException("roleIds cannot be empty");
       }
+      boolean hasNonStaffRole = dsl.fetchExists(dsl.selectOne().from(IAM_ROLE)
+          .where(IAM_ROLE.ID.in(request.getRoleIds()))
+          .and(IAM_ROLE.ROLE_TYPE.ne("STAFF")));
+      if (hasNonStaffRole) {
+        throw new IllegalArgumentException("All roles must be STAFF roles");
+      }
       dsl.deleteFrom(IAM_USER_ROLE).where(IAM_USER_ROLE.USER_ID.eq(userId)).execute();
       for (Long roleId : request.getRoleIds()) {
         dsl.insertInto(IAM_USER_ROLE)
@@ -104,6 +129,10 @@ public class UserMutationService {
             .execute();
       }
       shouldBumpAuthVersion = true;
+    }
+
+    if (request.getRoleIds() != null) {
+      validateScopeDimensionsAgainstRoles(request);
     }
 
     if (request.getScopes() != null) {
@@ -141,5 +170,30 @@ public class UserMutationService {
     }
     return userReadService.getUserDetail(userId);
   }
-}
 
+  private void validateScopeDimensionsAgainstRoles(PatchUserRequest request) {
+    List<Long> roleIds = request.getRoleIds();
+    if (roleIds == null || roleIds.isEmpty()) {
+      return;
+    }
+    Set<String> requiredDimensions = new LinkedHashSet<>(dsl.select(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION)
+        .from(IAM_ROLE)
+        .where(IAM_ROLE.ID.in(roleIds))
+        .and(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION.isNotNull())
+        .fetch(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION));
+
+    if (requiredDimensions.isEmpty()) {
+      return;
+    }
+    if (request.getScopes() == null || request.getScopes().isEmpty()) {
+      throw new IllegalArgumentException("Data scopes are required by selected roles");
+    }
+    Set<String> payloadDimensions = new LinkedHashSet<>();
+    for (DataScopeItem item : request.getScopes()) {
+      payloadDimensions.add(item.getDimension().getValue());
+    }
+    if (!payloadDimensions.equals(requiredDimensions)) {
+      throw new IllegalArgumentException("Data scope dimensions must match role requirements");
+    }
+  }
+}
