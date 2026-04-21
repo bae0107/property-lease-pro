@@ -372,6 +372,96 @@ paths:
                 $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
       x-permission-name: 查询用户详情
       x-permission-description: 查询单个用户详情，返回角色列表和数据权限
+    patch:
+      tags:
+        - iam-users
+      operationId: patchUser
+      summary: 聚合修改用户（支持状态、密码、角色、数据权限、基本资料一次提交）
+      description: '字段语义：
+
+        - 未传字段：不修改
+
+        - 传 null：按字段规则处理（允许清空或拒绝）
+
+        - roleIds/scopes 传入时按全量替换处理
+
+        - userType 不允许修改（仅支持 STAFF 用户）'
+      x-required-permission: iam:user:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchUserRequest'
+      responses:
+        '200':
+          description: 修改成功，返回最新用户详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        '400':
+          description: 参数校验失败 / 角色类型与用户类型不匹配 / 数据权限维度不匹配
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+    delete:
+      tags:
+        - iam-users
+      operationId: deleteUser
+      summary: 软删除用户（不可恢复）
+      description: '执行软删除：
+
+        - 写入 deletedAt/deletedBy/deleteReason
+
+        - 同步置状态为 INACTIVE
+
+        - 墓碑化 userName/mobile/email（允许复用）
+
+        - 触发 authVersion 递增使 token 失效'
+      x-required-permission: iam:user:delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteUserRequest'
+      responses:
+        '200':
+          description: 删除成功
+        '400':
+          description: 不允许删除内置用户/最后管理员/自身
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
   /iam/users/{id}/status:
     put:
       tags:
@@ -886,6 +976,21 @@ paths:
             application/json:
               schema:
                 $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ListViewMeta
+  /iam/users/create-form-meta:
+    get:
+      tags:
+        - iam-users
+      operationId: getUserCreateFormMeta
+      summary: 查询创建用户表单元数据
+      description: 返回创建 STAFF 用户所需的角色选项、数据权限选项及依赖关系。
+      x-required-permission: iam:user:create
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateFormMeta'
   /iam/roles/list-view-meta:
     get:
       tags:
@@ -1245,6 +1350,22 @@ components:
           nullable: true
           description: 登录用户名，存在 password 身份时返回
           example: zhangsan
+        roleNames:
+          type: string
+          nullable: true
+          description: 所属角色名称，多个角色用英文逗号拼接；无角色时返回 "-"
+          example: 系统管理员,财务人员
+        authVersion:
+          type: integer
+          format: int32
+          nullable: true
+          description: 当前认证版本号（用于令牌失效控制）
+          example: 3
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 软删除时间，null 表示未删除
     UserDetail:
       allOf:
         - $ref: '#/components/schemas/User'
@@ -1555,6 +1676,104 @@ components:
           description: 当所选角色要求区域/门店数据权限时，需同时提交匹配维度的数据权限
           items:
             $ref: '#/components/schemas/DataScopeItem'
+    PatchUserProfile:
+      type: object
+      description: 用户基本资料变更项（不含 userType）
+      properties:
+        realName:
+          type: string
+          nullable: true
+          maxLength: 100
+        mobile:
+          type: string
+          nullable: true
+          pattern: ^1[3-9]\d{9}$
+        email:
+          type: string
+          nullable: true
+          format: email
+          maxLength: 200
+    PatchUserRequest:
+      type: object
+      description: 聚合修改用户请求。未传字段不修改；传 null 时按字段规则处理。
+      properties:
+        profile:
+          $ref: '#/components/schemas/PatchUserProfile'
+          nullable: true
+        status:
+          $ref: '#/components/schemas/UserStatus'
+          nullable: true
+        password:
+          type: string
+          nullable: true
+          minLength: 8
+          maxLength: 100
+          description: 管理员重置密码。传入则触发 authVersion 递增
+        roleIds:
+          type: array
+          nullable: true
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+          description: 角色 ID 列表。传入时按全量替换
+        scopes:
+          type: array
+          nullable: true
+          description: 数据权限列表。传入时按全量替换
+          items:
+            $ref: '#/components/schemas/DataScopeItem'
+    DeleteUserRequest:
+      type: object
+      description: 软删除用户请求
+      properties:
+        reason:
+          type: string
+          nullable: true
+          maxLength: 200
+          description: 删除原因
+    ScopeOption:
+      type: object
+      required:
+        - value
+        - label
+      properties:
+        value:
+          type: integer
+          format: int64
+        label:
+          type: string
+    UserCreateFormMeta:
+      type: object
+      required:
+        - roleOptions
+        - areaOptions
+        - storeOptions
+        - allowedStoreIdsByAreaId
+      properties:
+        roleOptions:
+          type: array
+          description: 可用角色选项（仅 STAFF 角色）
+          items:
+            $ref: '#/components/schemas/Role'
+        areaOptions:
+          type: array
+          description: 区域下拉选项
+          items:
+            $ref: '#/components/schemas/ScopeOption'
+        storeOptions:
+          type: array
+          description: 门店下拉选项（全量）
+          items:
+            $ref: '#/components/schemas/ScopeOption'
+        allowedStoreIdsByAreaId:
+          type: object
+          description: 区域到可用门店 ID 列表映射。key=areaId，value=storeId 列表。
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              format: int64
   securitySchemes:
     serviceJwt:
       type: http

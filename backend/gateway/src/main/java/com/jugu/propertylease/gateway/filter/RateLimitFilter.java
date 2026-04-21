@@ -7,6 +7,7 @@ import com.jugu.propertylease.security.constants.SecurityConstants;
 import com.jugu.propertylease.security.filter.reactive.ReactiveUserJwtFilter;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
@@ -92,12 +93,16 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
     exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
-    // RateLimitFilter(order=-150) 在 ReactiveUserJwtFilter(WebFilter, order=-100) 之后执行，
-    // 此时 traceId 已由 ReactiveUserJwtFilter 写入 exchange attributes
+    // 优先从 attributes 读取 traceId：
+    // 在 ReactiveUserJwtFilter 运行过的链路中，会提前写入 exchange attributes。
     String traceId = exchange.getAttribute(ReactiveUserJwtFilter.ATTR_TRACE_ID);
-    // 兜底：attributes 未命中时从 header 读（极端场景：ReactiveUserJwtFilter 未运行-什么极端场景?）
+    // 兜底：attributes 未命中时从 header 读取。
     if (traceId == null) {
       traceId = exchange.getRequest().getHeaders().getFirst(SecurityConstants.HEADER_TRACE_ID);
+    }
+    // 最后兜底：保证错误响应始终带 traceId，便于排查限流问题。
+    if (traceId == null || traceId.isBlank()) {
+      traceId = UUID.randomUUID().toString();
     }
 
     String body = SecurityResponseUtils.buildErrorJson(ERROR_CODE, ERROR_MESSAGE, traceId);

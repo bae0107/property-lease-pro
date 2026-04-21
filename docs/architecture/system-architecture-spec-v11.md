@@ -620,7 +620,7 @@ traceId 来源：
 
 - 微服务：从 MDC 读取（`TraceIdFilter` 注入）
 - Gateway Reactive 侧：从 `exchange.getAttribute(ReactiveUserJwtFilter.ATTR_TRACE_ID)` 读取，兜底从
-  request header 读
+  request header 读；其中 `RateLimitFilter` 在两者都缺失时会生成 UUID 作为最终兜底
 
 ### 12.3 错误码格式
 
