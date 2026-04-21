@@ -1245,6 +1245,11 @@ components:
           nullable: true
           description: 登录用户名，存在 password 身份时返回
           example: zhangsan
+        roleNames:
+          type: string
+          nullable: true
+          description: 所属角色名称，多个角色用英文逗号拼接；无角色时返回 "-"
+          example: 系统管理员,财务人员
     UserDetail:
       allOf:
         - $ref: '#/components/schemas/User'
