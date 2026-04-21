@@ -47,7 +47,7 @@ spring:
 
 logging:
   level:
-    root: INFO
+    root: Debug
     org.springframework.web: INFO
 security:
   mode: mock
