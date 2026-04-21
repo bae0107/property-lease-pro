@@ -63,9 +63,8 @@ public class IamApiDelegateImpl implements IamApiDelegate {
     return userFormMetaService.getCreateFormMeta();
   }
 
-  public Void deleteUser(Long id, DeleteUserRequest deleteUserRequest) {
+  public void deleteUser(Long id, DeleteUserRequest deleteUserRequest) {
     userLifecycleService.softDeleteUser(id, null,
         deleteUserRequest == null ? null : deleteUserRequest.getReason());
-    return null;
   }
 }

@@ -1,14 +1,15 @@
 package com.jugu.propertylease.main.iam.service;
 
-import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
-import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
-
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
-import java.time.LocalDateTime;
 import org.jooq.DSLContext;
 import org.jooq.Record3;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+
+import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 
 /**
  * 用户生命周期管理服务（软删除等）。
@@ -45,7 +46,7 @@ public class UserLifecycleService {
     String tombstoneUserName = truncate(tombstonePrefix + oldUserName, 100);
     String tombstoneMobile = truncate("D" + userId + "00000000000000000000", 20);
     String tombstoneEmail = oldEmail == null ? null : truncate(tombstonePrefix + oldEmail, 200);
-    LocalDateTime now = LocalDateTime.now();
+    OffsetDateTime now = OffsetDateTime.now();
 
     dsl.update(IAM_USER)
         .set(IAM_USER.STATUS, "INACTIVE")
