@@ -408,7 +408,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserDetail'
         '400':
-          description: 参数校验失败 / 角色类型与用户类型不匹配 / 数据权限维度不匹配
+          description: |
+            参数校验失败。典型错误码：
+            - IAM_USER_PATCH_REQUEST_REQUIRED
+            - IAM_USER_PATCH_TYPE_UNSUPPORTED
+            - IAM_USER_PATCH_BUILTIN_FORBIDDEN
+            - IAM_USER_ROLE_IDS_EMPTY
+            - IAM_USER_ROLE_TYPE_MISMATCH
+            - IAM_USER_SCOPE_REQUIRED
+            - IAM_USER_SCOPE_RESOURCE_REQUIRED
+            - IAM_USER_SCOPE_DIMENSION_MISMATCH
           content:
             application/json:
               schema:
@@ -451,7 +460,11 @@ paths:
         '200':
           description: 删除成功
         '400':
-          description: 不允许删除内置用户/最后管理员/自身
+          description: |
+            删除约束校验失败。典型错误码：
+            - IAM_USER_DELETE_SELF_FORBIDDEN
+            - IAM_USER_DELETE_FORBIDDEN
+            - IAM_USER_DELETE_LAST_ADMIN_FORBIDDEN
           content:
             application/json:
               schema:

@@ -5,12 +5,16 @@ import com.jugu.propertylease.common.model.PageRequest;
 import com.jugu.propertylease.main.api.IamApiDelegate;
 import com.jugu.propertylease.main.api.model.DeleteUserRequest;
 import com.jugu.propertylease.main.api.model.PermissionPageResult;
+import com.jugu.propertylease.main.api.model.PatchUserRequest;
 import com.jugu.propertylease.main.api.model.RolePageResult;
 import com.jugu.propertylease.main.api.model.UserCreateFormMeta;
+import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.api.model.UserPageResult;
 import com.jugu.propertylease.main.iam.page.IamPageService;
 import com.jugu.propertylease.main.iam.service.UserFormMetaService;
 import com.jugu.propertylease.main.iam.service.UserLifecycleService;
+import com.jugu.propertylease.main.iam.service.UserMutationService;
+import com.jugu.propertylease.security.context.CurrentUser;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,14 +23,17 @@ public class IamApiDelegateImpl implements IamApiDelegate {
   private final IamPageService iamPageService;
   private final UserFormMetaService userFormMetaService;
   private final UserLifecycleService userLifecycleService;
+  private final UserMutationService userMutationService;
 
   public IamApiDelegateImpl(
       IamPageService iamPageService,
       UserFormMetaService userFormMetaService,
-      UserLifecycleService userLifecycleService) {
+      UserLifecycleService userLifecycleService,
+      UserMutationService userMutationService) {
     this.iamPageService = iamPageService;
     this.userFormMetaService = userFormMetaService;
     this.userLifecycleService = userLifecycleService;
+    this.userMutationService = userMutationService;
   }
 
   @Override
@@ -59,12 +66,19 @@ public class IamApiDelegateImpl implements IamApiDelegate {
     return iamPageService.queryPermissions(pageRequest);
   }
 
+  @Override
   public UserCreateFormMeta getUserCreateFormMeta() {
     return userFormMetaService.getCreateFormMeta();
   }
 
+  @Override
   public void deleteUser(Long id, DeleteUserRequest deleteUserRequest) {
-    userLifecycleService.softDeleteUser(id, null,
+    userLifecycleService.softDeleteUser(id, CurrentUser.getCurrentUserId(),
         deleteUserRequest == null ? null : deleteUserRequest.getReason());
+  }
+
+  @Override
+  public UserDetail patchUser(Long id, PatchUserRequest patchUserRequest) {
+    return userMutationService.patchUser(id, patchUserRequest);
   }
 }
