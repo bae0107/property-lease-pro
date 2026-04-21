@@ -5,6 +5,7 @@ import com.jugu.propertylease.common.model.PageRequest;
 import com.jugu.propertylease.main.api.IamApiDelegate;
 import com.jugu.propertylease.main.api.model.DeleteUserRequest;
 import com.jugu.propertylease.main.api.model.PermissionPageResult;
+import com.jugu.propertylease.main.api.model.PatchUserRequest;
 import com.jugu.propertylease.main.api.model.RolePageResult;
 import com.jugu.propertylease.main.api.model.UserCreateFormMeta;
 import com.jugu.propertylease.main.api.model.UserPageResult;
