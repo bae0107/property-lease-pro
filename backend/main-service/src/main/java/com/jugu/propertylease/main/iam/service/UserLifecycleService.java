@@ -1,14 +1,15 @@
 package com.jugu.propertylease.main.iam.service;
 
-import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
-import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
-
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
-import java.time.OffsetDateTime;
 import org.jooq.DSLContext;
 import org.jooq.Record3;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+
+import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 
 /**
  * 用户生命周期管理服务（软删除等）。
