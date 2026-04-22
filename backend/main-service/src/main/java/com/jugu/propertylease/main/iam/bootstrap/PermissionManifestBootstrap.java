@@ -36,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class PermissionManifestBootstrap {
 
+  private static final String SYSTEM_ROLE_CODE = "ROLE_SYSTEM";
+
   private final DSLContext dsl;
   private final ObjectMapper objectMapper;
   private final ResourceLoader resourceLoader;
@@ -188,8 +190,14 @@ public class PermissionManifestBootstrap {
       }
       roleIdByCode.put(role.code, roleId);
 
+      List<String> declaredPermissions = role.permissions == null ? List.of() : role.permissions;
+      if (SYSTEM_ROLE_CODE.equals(role.code) && !declaredPermissions.isEmpty()) {
+        throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR,
+            "IAM_BOOTSTRAP_SYSTEM_ROLE_PERMISSION_FORBIDDEN",
+            "ROLE_SYSTEM 不能绑定任何权限");
+      }
       Set<Long> permissionIds = new LinkedHashSet<>();
-      for (String permissionCode : role.permissions == null ? List.<String>of() : role.permissions) {
+      for (String permissionCode : declaredPermissions) {
         Long permissionId = dsl.select(IAM_PERMISSION.ID)
             .from(IAM_PERMISSION)
             .where(IAM_PERMISSION.CODE.eq(permissionCode))
@@ -238,7 +246,7 @@ public class PermissionManifestBootstrap {
             .set(IAM_USER.REAL_NAME, user.realName)
             .set(IAM_USER.MOBILE, user.mobile)
             .set(IAM_USER.EMAIL, user.email)
-            .set(IAM_USER.SOURCE, "MANIFEST")
+            .set(IAM_USER.SOURCE, user.source == null ? "BUILTIN" : user.source)
             .set(IAM_USER.CREATED_AT, now)
             .set(IAM_USER.UPDATED_AT, now)
             .returning(IAM_USER.ID)
@@ -338,6 +346,7 @@ public class PermissionManifestBootstrap {
     public String realName;
     public String userType;
     public String status;
+    public String source;
     public String mobile;
     public String email;
     public List<String> roleCodes;
