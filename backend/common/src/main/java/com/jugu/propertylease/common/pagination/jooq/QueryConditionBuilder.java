@@ -1,5 +1,6 @@
 package com.jugu.propertylease.common.pagination.jooq;
 
+import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.common.model.EnumFilter;
 import com.jugu.propertylease.common.model.IdsFilter;
 import com.jugu.propertylease.common.model.QueryFilter;
@@ -8,6 +9,7 @@ import com.jugu.propertylease.common.pagination.jooq.binding.FilterBinding;
 import java.util.Map;
 import org.jooq.Condition;
 import org.jooq.impl.DSL;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -42,7 +44,7 @@ public class QueryConditionBuilder {
   protected FilterBinding requireBinding(Map<String, FilterBinding> bindings, String key) {
     FilterBinding b = bindings.get(key);
     if (b == null) {
-      throw new IllegalArgumentException("Invalid filter key: " + key);
+      throw new BusinessException(HttpStatus.BAD_REQUEST,"INVALID_FILTER_KEY","Invalid filter key: " + key);
     }
     return b;
   }
