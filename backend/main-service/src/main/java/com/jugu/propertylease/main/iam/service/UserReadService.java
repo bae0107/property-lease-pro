@@ -53,10 +53,8 @@ public class UserReadService {
             .code(r.get(IAM_ROLE.CODE))
             .roleType(RoleType.fromValue(r.get(IAM_ROLE.ROLE_TYPE)))
             .sourceType(SourceType.fromValue(r.get(IAM_ROLE.SOURCE_TYPE)))
-            .requiredDataScopeDimension(r.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION) == null
-                ? null
-                : com.jugu.propertylease.main.api.model.DataScopeDimension.fromValue(
-                    r.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION)))
+            .requiredDataScopeDimension(EnumValueMapper.nullableFromValue(r.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION),
+                com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
             .description(r.get(IAM_ROLE.DESCRIPTION))
             .createdAt(r.get(IAM_ROLE.CREATED_AT))
             .updatedAt(r.get(IAM_ROLE.UPDATED_AT)));

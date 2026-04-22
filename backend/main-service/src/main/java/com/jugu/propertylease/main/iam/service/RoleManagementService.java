@@ -207,9 +207,8 @@ public class RoleManagementService {
         .code(row.get(IAM_ROLE.CODE))
         .roleType(RoleType.fromValue(row.get(IAM_ROLE.ROLE_TYPE)))
         .sourceType(SourceType.fromValue(row.get(IAM_ROLE.SOURCE_TYPE)))
-        .requiredDataScopeDimension(row.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION) == null ? null
-            : com.jugu.propertylease.main.api.model.DataScopeDimension
-                .fromValue(row.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION)))
+        .requiredDataScopeDimension(EnumValueMapper.nullableFromValue(row.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION),
+            com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
         .description(row.get(IAM_ROLE.DESCRIPTION))
         .createdAt(row.get(IAM_ROLE.CREATED_AT))
         .updatedAt(row.get(IAM_ROLE.UPDATED_AT));
