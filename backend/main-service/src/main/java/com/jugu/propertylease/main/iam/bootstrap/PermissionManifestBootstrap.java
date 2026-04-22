@@ -3,6 +3,9 @@ package com.jugu.propertylease.main.iam.bootstrap;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_PERMISSION;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE_PERMISSION;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_CREDENTIAL;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_PERMISSION_SYNC_STATE;
@@ -27,6 +30,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +48,11 @@ public class PermissionManifestBootstrap {
 
   @Value("${iam.permissions.manifest-location:classpath:/iam/permissions-manifest.json}")
   private String manifestLocation;
+
+  @Value("${iam.bootstrap.users.iam-admin-initial-password:ChangeMe123!}")
+  private String iamAdminInitialPassword;
+
+  private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
   public PermissionManifestBootstrap(DSLContext dsl, ObjectMapper objectMapper,
       ResourceLoader resourceLoader) {
@@ -282,6 +291,70 @@ public class PermissionManifestBootstrap {
               .execute();
         }
       }
+
+      syncDefaultDataScopes(userId, user.defaultDataScopes, now);
+      syncCredentialAndIdentity(user, userId, now);
+    }
+  }
+
+
+  private void syncDefaultDataScopes(Long userId, List<DefaultDataScope> defaultDataScopes,
+      OffsetDateTime now) {
+    if (defaultDataScopes == null || defaultDataScopes.isEmpty()) {
+      return;
+    }
+    dsl.deleteFrom(IAM_USER_DATA_SCOPE).where(IAM_USER_DATA_SCOPE.USER_ID.eq(userId)).execute();
+    for (DefaultDataScope scope : defaultDataScopes) {
+      dsl.insertInto(IAM_USER_DATA_SCOPE)
+          .set(IAM_USER_DATA_SCOPE.USER_ID, userId)
+          .set(IAM_USER_DATA_SCOPE.SCOPE_DIMENSION, scope.dimension)
+          .set(IAM_USER_DATA_SCOPE.SCOPE_TYPE, scope.scopeType)
+          .set(IAM_USER_DATA_SCOPE.RESOURCE_ID, (Long) null)
+          .set(IAM_USER_DATA_SCOPE.CREATED_AT, now)
+          .execute();
+    }
+  }
+
+  private void syncCredentialAndIdentity(ManifestUser user, Long userId, OffsetDateTime now) {
+    if (Boolean.TRUE.equals(user.createPasswordCredential)) {
+      String rawPassword = user.initialPassword == null || user.initialPassword.isBlank()
+          ? iamAdminInitialPassword : user.initialPassword;
+      String hash = passwordEncoder.encode(rawPassword);
+      boolean credentialExists = dsl.fetchExists(
+          dsl.selectOne().from(IAM_CREDENTIAL).where(IAM_CREDENTIAL.USER_ID.eq(userId)));
+      if (credentialExists) {
+        dsl.update(IAM_CREDENTIAL)
+            .set(IAM_CREDENTIAL.PASSWORD_HASH, hash)
+            .set(IAM_CREDENTIAL.UPDATED_AT, now)
+            .where(IAM_CREDENTIAL.USER_ID.eq(userId))
+            .execute();
+      } else {
+        dsl.insertInto(IAM_CREDENTIAL)
+            .set(IAM_CREDENTIAL.USER_ID, userId)
+            .set(IAM_CREDENTIAL.PASSWORD_HASH, hash)
+            .set(IAM_CREDENTIAL.CREATED_AT, now)
+            .set(IAM_CREDENTIAL.UPDATED_AT, now)
+            .execute();
+      }
+    }
+
+    if (Boolean.TRUE.equals(user.createPasswordIdentity)) {
+      boolean identityExists = dsl.fetchExists(
+          dsl.selectOne().from(IAM_IDENTITY)
+              .where(IAM_IDENTITY.PROVIDER.eq("password"))
+              .and(IAM_IDENTITY.PROVIDER_USER_ID.eq(user.userName))
+              .and(IAM_IDENTITY.DELETED_AT.isNull()));
+      if (!identityExists) {
+        dsl.insertInto(IAM_IDENTITY)
+            .set(IAM_IDENTITY.USER_ID, userId)
+            .set(IAM_IDENTITY.PROVIDER, "password")
+            .set(IAM_IDENTITY.PROVIDER_USER_ID, user.userName)
+            .set(IAM_IDENTITY.UNION_ID, (String) null)
+            .set(IAM_IDENTITY.APP_ID, (String) null)
+            .set(IAM_IDENTITY.CREATED_AT, now)
+            .set(IAM_IDENTITY.DELETED_AT, (OffsetDateTime) null)
+            .execute();
+      }
     }
   }
 
@@ -349,6 +422,16 @@ public class PermissionManifestBootstrap {
     public String source;
     public String mobile;
     public String email;
+    public String initialPassword;
+    public Boolean createPasswordCredential;
+    public Boolean createPasswordIdentity;
+    public List<DefaultDataScope> defaultDataScopes;
     public List<String> roleCodes;
+  }
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  private static final class DefaultDataScope {
+    public String dimension;
+    public String scopeType;
   }
 }

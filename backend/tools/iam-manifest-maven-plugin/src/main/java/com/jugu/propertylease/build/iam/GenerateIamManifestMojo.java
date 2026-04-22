@@ -278,9 +278,9 @@ public class GenerateIamManifestMojo extends AbstractMojo {
     manifest.builtinRoles = List.of(adminRole, tenantRole, contractorRole, systemRole);
 
     BuiltinUser iamAdmin = user(iamAdminUserName, "IAM Admin", "STAFF", "ACTIVE", "BUILTIN",
-        iamAdminMobile, iamAdminEmail, List.of(roleAdminCode));
+        iamAdminMobile, iamAdminEmail, List.of(roleAdminCode), true, true);
     BuiltinUser system = user(systemUserName, "System", "SYSTEM", "ACTIVE", "BUILTIN",
-        systemMobile, systemEmail, List.of(roleSystemCode));
+        systemMobile, systemEmail, List.of(roleSystemCode), false, true);
     manifest.builtinUsers = List.of(iamAdmin, system);
 
     String digestSource = files.stream().map(Path::toString).sorted().collect(Collectors.joining("|"))
@@ -303,7 +303,8 @@ public class GenerateIamManifestMojo extends AbstractMojo {
   }
 
   private BuiltinUser user(String userName, String realName, String userType, String status,
-      String source, String mobile, String email, List<String> roleCodes) {
+      String source, String mobile, String email, List<String> roleCodes,
+      boolean createPasswordCredential, boolean createPasswordIdentity) {
     BuiltinUser user = new BuiltinUser();
     user.userName = userName;
     user.realName = realName;
@@ -313,7 +314,21 @@ public class GenerateIamManifestMojo extends AbstractMojo {
     user.mobile = mobile;
     user.email = email;
     user.roleCodes = roleCodes;
+    user.createPasswordCredential = createPasswordCredential;
+    user.createPasswordIdentity = createPasswordIdentity;
+    user.defaultDataScopes = List.of(
+        dataScope("AREA", "ALL"),
+        dataScope("STORE", "ALL")
+    );
     return user;
+  }
+
+
+  private DefaultDataScope dataScope(String dimension, String scopeType) {
+    DefaultDataScope scope = new DefaultDataScope();
+    scope.dimension = dimension;
+    scope.scopeType = scopeType;
+    return scope;
   }
 
   private void writeManifest(Manifest manifest) throws MojoExecutionException {
@@ -395,5 +410,13 @@ public class GenerateIamManifestMojo extends AbstractMojo {
     public String mobile;
     public String email;
     public List<String> roleCodes = List.of();
+    public boolean createPasswordCredential;
+    public boolean createPasswordIdentity;
+    public List<DefaultDataScope> defaultDataScopes = List.of();
+  }
+
+  private static final class DefaultDataScope {
+    public String dimension;
+    public String scopeType;
   }
 }

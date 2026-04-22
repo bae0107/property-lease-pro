@@ -37,10 +37,8 @@ public class UserFormMetaService {
             .code(r.getCode())
             .roleType(RoleType.fromValue(r.getRoleType()))
             .sourceType(SourceType.fromValue(r.getSourceType()))
-            .requiredDataScopeDimension(r.getRequiredDataScopeDimension() == null
-                ? null
-                : com.jugu.propertylease.main.api.model.DataScopeDimension.fromValue(
-                    r.getRequiredDataScopeDimension()))
+            .requiredDataScopeDimension(EnumValueMapper.nullableFromValue(r.getRequiredDataScopeDimension(),
+                com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
             .description(r.getDescription())
             .createdAt(r.getCreatedAt())
             .updatedAt(r.getUpdatedAt()));
