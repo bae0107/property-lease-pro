@@ -15,6 +15,7 @@ import com.jugu.propertylease.main.api.model.RoleType;
 import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.api.model.UpdateRolePermissionsRequest;
 import com.jugu.propertylease.main.api.model.UpdateRoleRequest;
+import com.jugu.propertylease.main.jooq.tables.records.IamRoleRecord;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -176,7 +177,7 @@ public class RoleManagementService {
     }
 
     List<Long> ids = new ArrayList<>(new LinkedHashSet<>(batchRequest.getIds()));
-    List<Record> roles = dsl.selectFrom(IAM_ROLE).where(IAM_ROLE.ID.in(ids)).fetch();
+    List<IamRoleRecord> roles = dsl.selectFrom(IAM_ROLE).where(IAM_ROLE.ID.in(ids)).fetch();
     if (roles.size() != ids.size()) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "存在角色不存在");
     }
