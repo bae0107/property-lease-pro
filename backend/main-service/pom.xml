@@ -103,9 +103,57 @@
         <groupId>org.openapitools</groupId>
         <version>7.17.0</version>
       </plugin>
+
+      <plugin>
+        <groupId>com.jugu.propertylease</groupId>
+        <artifactId>iam-manifest-maven-plugin</artifactId>
+        <version>${project.version}</version>
+        <executions>
+          <execution>
+            <id>generate-iam-manifest</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>generate-manifest</goal>
+            </goals>
+            <configuration>
+              <openapiDir>${project.basedir}/src/main/resources/openapi</openapiDir>
+              <outputFile>${project.build.directory}/generated-resources/iam/permissions-manifest.json</outputFile>
+              <authPathPrefixes>
+                <authPathPrefix>/auth</authPathPrefix>
+              </authPathPrefixes>
+              <roleAdminCode>ROLE_IAM_ADMIN</roleAdminCode>
+              <roleTenantCode>ROLE_TENANT</roleTenantCode>
+              <roleContractorCode>ROLE_CONTRACTOR</roleContractorCode>
+              <roleSystemCode>ROLE_SYSTEM</roleSystemCode>
+              <iamAdminUserName>iam_admin</iamAdminUserName>
+              <systemUserName>iam_system</systemUserName>
+              <iamAdminMobile>13800000001</iamAdminMobile>
+              <systemMobile>13800000002</systemMobile>
+              <iamAdminEmail>iam_admin@builtin.local</iamAdminEmail>
+              <systemEmail>iam_system@builtin.local</systemEmail>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <artifactId>build-helper-maven-plugin</artifactId>
         <groupId>org.codehaus.mojo</groupId>
+        <executions>
+          <execution>
+            <id>add-generated-iam-resources</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>add-resource</goal>
+            </goals>
+            <configuration>
+              <resources>
+                <resource>
+                  <directory>${project.build.directory}/generated-resources</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <artifactId>maven-antrun-plugin</artifactId>

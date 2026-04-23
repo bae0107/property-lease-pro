@@ -78,7 +78,7 @@ class RateLimitFilterTest {
 
   @Test
   @DisplayName("超出容量后返回 429")
-  void filter_exceedCapacity_shouldReturn429() {
+  void filter_exceedsCapacity_shouldReturn429() {
     int capacity = 3;
     RateLimitFilter filter = new RateLimitFilter(buildProps(true, capacity, 0),
         new IpRateLimitKeyResolver());
@@ -97,6 +97,8 @@ class RateLimitFilterTest {
     MockServerWebExchange overExchange = MockServerWebExchange.from(overRequest);
     StepVerifier.create(filter.filter(overExchange, allowChain())).verifyComplete();
     assertThat(overExchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    String body = overExchange.getResponse().getBodyAsString().block();
+    assertThat(body).contains("GATEWAY_RATE_LIMIT_EXCEEDED").contains("请求过于频繁，请稍后再试");
   }
 
   @Test
@@ -176,5 +178,29 @@ class RateLimitFilterTest {
     assertThat(overExchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     String body = overExchange.getResponse().getBodyAsString().block();
     assertThat(body).contains("header-trace-fallback");
+  }
+
+  @Test
+  @DisplayName("限流触发时，若 attributes 和 header 都没有 traceId 则自动生成")
+  void filter_rateLimited_429ResponseGeneratesTraceIdWhenMissing() {
+    RateLimitFilter filter = new RateLimitFilter(buildProps(true, 1, 0),
+        new IpRateLimitKeyResolver());
+
+    MockServerHttpRequest first = MockServerHttpRequest.get("/test")
+        .remoteAddress(new java.net.InetSocketAddress("10.0.0.7", 1234))
+        .build();
+    StepVerifier.create(filter.filter(MockServerWebExchange.from(first), allowChain()))
+        .verifyComplete();
+
+    MockServerHttpRequest over = MockServerHttpRequest.get("/test")
+        .remoteAddress(new java.net.InetSocketAddress("10.0.0.7", 1234))
+        .build();
+    MockServerWebExchange overExchange = MockServerWebExchange.from(over);
+
+    StepVerifier.create(filter.filter(overExchange, allowChain())).verifyComplete();
+
+    assertThat(overExchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    String body = overExchange.getResponse().getBodyAsString().block();
+    assertThat(body).contains("traceId").doesNotContain("\"traceId\":null");
   }
 }
