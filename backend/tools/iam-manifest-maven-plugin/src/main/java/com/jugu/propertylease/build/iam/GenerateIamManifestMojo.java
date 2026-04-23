@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -248,7 +247,6 @@ public class GenerateIamManifestMojo extends AbstractMojo {
       Map<String, Set<String>> roleToPermissionCodes, List<Path> files) throws MojoExecutionException {
     Manifest manifest = new Manifest();
     manifest.version = "v1";
-    manifest.generatedAt = OffsetDateTime.now().toString();
 
     List<PermissionItem> permissionItems = permissions.values().stream()
         .sorted(Comparator.comparing(p -> p.code))
@@ -275,7 +273,7 @@ public class GenerateIamManifestMojo extends AbstractMojo {
         roleToPermissionCodes.get("CONTRACTOR"));
     BuiltinRole systemRole = role(roleSystemCode, "系统角色", "SYSTEM", Set.of());
 
-    manifest.builtinRoles = List.of(adminRole, tenantRole, contractorRole, systemRole);
+    manifest.builtinRoles = List.of(adminRole, systemRole, tenantRole, contractorRole);
 
     BuiltinUser iamAdmin = user(iamAdminUserName, "IAM Admin", "STAFF", "ACTIVE", "BUILTIN",
         iamAdminMobile, iamAdminEmail, List.of(roleAdminCode), true, true);
@@ -377,7 +375,6 @@ public class GenerateIamManifestMojo extends AbstractMojo {
 
   private static final class Manifest {
     public String version;
-    public String generatedAt;
     public String checksum;
     public List<PermissionItem> permissions = List.of();
     public List<BuiltinRole> builtinRoles = List.of();
