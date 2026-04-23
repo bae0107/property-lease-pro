@@ -85,8 +85,9 @@ public class GatewayErrorWebExceptionHandler implements ErrorWebExceptionHandler
    * 将异常分类为对应的 HTTP 状态码和错误码。
    *
    * <p>ResponseStatusException(404) → 路由未找到
-   * ConnectException              → 下游不可达 TimeoutException              → 下游超时 其他
-   * → 兜底 502
+   * ConnectException              → 下游不可达
+   * TimeoutException              → 下游超时
+   * 其他                           → 兜底 502
    */
   private ErrorInfo classify(Throwable ex) {
     // 路由未找到：Spring Cloud Gateway 找不到匹配路由时抛出 404 ResponseStatusException

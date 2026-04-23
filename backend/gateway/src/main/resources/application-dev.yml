@@ -28,7 +28,7 @@ security:
   mode: gateway
   service-name: gateway
   permit-paths:
-    - /api/main-service/auth/login
+    - /api/main-service/auth/**
   jwt:
     user:
       secret: dev-user-jwt-secret-for-development-only
