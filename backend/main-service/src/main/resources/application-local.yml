@@ -49,5 +49,7 @@ logging:
   level:
     root: INFO
     org.springframework.web: INFO
+    org:
+      jooq: DEBUG
 security:
   mode: mock
