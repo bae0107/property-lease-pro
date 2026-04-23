@@ -49,8 +49,11 @@ public class PermissionManifestBootstrap {
   @Value("${iam.permissions.manifest-location:classpath:/iam/permissions-manifest.json}")
   private String manifestLocation;
 
-  @Value("${iam.bootstrap.users.iam-admin-initial-password:ChangeMe123!}")
+  @Value("${iam.bootstrap.users.iam-admin-initial-password:}")
   private String iamAdminInitialPassword;
+
+  @Value("${iam.bootstrap.users.reset-iam-admin-password-on-sync:false}")
+  private boolean resetIamAdminPasswordOnSync;
 
   private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -317,23 +320,29 @@ public class PermissionManifestBootstrap {
 
   private void syncCredentialAndIdentity(ManifestUser user, Long userId, OffsetDateTime now) {
     if (Boolean.TRUE.equals(user.createPasswordCredential)) {
-      String rawPassword = user.initialPassword == null || user.initialPassword.isBlank()
-          ? iamAdminInitialPassword : user.initialPassword;
-      String hash = passwordEncoder.encode(rawPassword);
+      String rawPassword = resolveBootstrapPassword(user);
       boolean credentialExists = dsl.fetchExists(
           dsl.selectOne().from(IAM_CREDENTIAL).where(IAM_CREDENTIAL.USER_ID.eq(userId)));
-      if (credentialExists) {
-        dsl.update(IAM_CREDENTIAL)
-            .set(IAM_CREDENTIAL.PASSWORD_HASH, hash)
-            .set(IAM_CREDENTIAL.UPDATED_AT, now)
-            .where(IAM_CREDENTIAL.USER_ID.eq(userId))
-            .execute();
-      } else {
+
+      if (!credentialExists) {
+        if (rawPassword == null || rawPassword.isBlank()) {
+          throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR,
+              "IAM_BOOTSTRAP_ADMIN_PASSWORD_REQUIRED",
+              "iam_admin 尚未预制密码，请配置 iam.bootstrap.users.iam-admin-initial-password");
+        }
+        String hash = passwordEncoder.encode(rawPassword);
         dsl.insertInto(IAM_CREDENTIAL)
             .set(IAM_CREDENTIAL.USER_ID, userId)
             .set(IAM_CREDENTIAL.PASSWORD_HASH, hash)
             .set(IAM_CREDENTIAL.CREATED_AT, now)
             .set(IAM_CREDENTIAL.UPDATED_AT, now)
+            .execute();
+      } else if (resetIamAdminPasswordOnSync && rawPassword != null && !rawPassword.isBlank()) {
+        String hash = passwordEncoder.encode(rawPassword);
+        dsl.update(IAM_CREDENTIAL)
+            .set(IAM_CREDENTIAL.PASSWORD_HASH, hash)
+            .set(IAM_CREDENTIAL.UPDATED_AT, now)
+            .where(IAM_CREDENTIAL.USER_ID.eq(userId))
             .execute();
       }
     }
@@ -356,6 +365,16 @@ public class PermissionManifestBootstrap {
             .execute();
       }
     }
+  }
+
+  private String resolveBootstrapPassword(ManifestUser user) {
+    if (user.initialPassword != null && !user.initialPassword.isBlank()) {
+      return user.initialPassword;
+    }
+    if (iamAdminInitialPassword != null && !iamAdminInitialPassword.isBlank()) {
+      return iamAdminInitialPassword;
+    }
+    return null;
   }
 
   private PermissionCode parseCode(String code) {
