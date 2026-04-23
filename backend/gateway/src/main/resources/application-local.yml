@@ -34,7 +34,7 @@ security:
   mode: gateway
   service-name: gateway
   permit-paths:
-    - /api/main-service/auth/login    # 唯一放行的外部路径；main-service 对应 permit-paths: /auth/login（C-42）
+    - /api/main-service/auth/**    # 唯一放行的外部路径；main-service 对应 permit-paths: /auth/**（C-42）
   jwt:
     user:
       secret: local-user-jwt-secret-for-development-only
