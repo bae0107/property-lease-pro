@@ -100,6 +100,7 @@ public class PasswordLoginService {
         userId,
         user.get(IAM_USER.USER_NAME),
         permissions,
+        user.get(IAM_USER.AUTH_VERSION),
         securityProperties.getJwt().getUser().getSecret(),
         expirationSeconds);
 

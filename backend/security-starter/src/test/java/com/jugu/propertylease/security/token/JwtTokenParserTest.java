@@ -116,6 +116,7 @@ class JwtTokenParserTest {
           .subject("user@example.com")
           .claim("userId", 99L)
           .claim("permissions", List.of("device:read"))
+          .claim("authVersion", 3)
           .issuedAt(new Date())
           .expiration(new Date(System.currentTimeMillis() + 300_000))
           .signWith(key)
@@ -126,6 +127,7 @@ class JwtTokenParserTest {
       assertThat(payload.username()).isEqualTo("user@example.com");
       assertThat(payload.userId()).isEqualTo(99L);
       assertThat(payload.permissions()).containsExactly("device:read");
+      assertThat(payload.authVersion()).isEqualTo(3);
     }
 
     @Test

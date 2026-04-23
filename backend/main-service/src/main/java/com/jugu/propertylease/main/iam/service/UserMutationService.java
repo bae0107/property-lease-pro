@@ -2,13 +2,21 @@ package com.jugu.propertylease.main.iam.service;
 
 import static com.jugu.propertylease.main.jooq.Tables.IAM_CREDENTIAL;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
 import com.jugu.propertylease.common.exception.BusinessException;
+import com.jugu.propertylease.main.api.model.BatchUpdateUserStatusRequest;
+import com.jugu.propertylease.main.api.model.CreateUserRequest;
 import com.jugu.propertylease.main.api.model.DataScopeItem;
 import com.jugu.propertylease.main.api.model.PatchUserRequest;
+import com.jugu.propertylease.main.api.model.ResetUserPasswordRequest;
+import com.jugu.propertylease.main.api.model.UpdateUserDataScopeRequest;
+import com.jugu.propertylease.main.api.model.UpdateUserRolesRequest;
+import com.jugu.propertylease.main.api.model.UpdateUserStatusRequest;
+import com.jugu.propertylease.main.api.model.UserDataScope;
 import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
 import java.time.OffsetDateTime;
@@ -55,9 +63,9 @@ public class UserMutationService {
     if (userBase == null) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_USER_NOT_FOUND", "用户不存在");
     }
-    if (!"STAFF".equals(userBase.value1())) {
+    if (!"STAFF".equals(userBase.value1()) && !"CONTRACTOR".equals(userBase.value1())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_PATCH_TYPE_UNSUPPORTED",
-          "当前接口仅支持 STAFF 用户");
+          "当前接口仅支持 STAFF / CONTRACTOR 用户");
     }
     if ("BUILTIN".equals(userBase.value2())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_PATCH_BUILTIN_FORBIDDEN",
@@ -120,12 +128,12 @@ public class UserMutationService {
         throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_IDS_EMPTY",
             "角色列表不能为空");
       }
-      boolean hasNonStaffRole = dsl.fetchExists(dsl.selectOne().from(IAM_ROLE)
+      boolean hasMismatchRole = dsl.fetchExists(dsl.selectOne().from(IAM_ROLE)
           .where(IAM_ROLE.ID.in(request.getRoleIds()))
-          .and(IAM_ROLE.ROLE_TYPE.ne("STAFF")));
-      if (hasNonStaffRole) {
+          .and(IAM_ROLE.ROLE_TYPE.ne(userBase.value1())));
+      if (hasMismatchRole) {
         throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_TYPE_MISMATCH",
-            "所选角色必须全部为 STAFF 类型");
+            "所选角色必须全部与用户类型一致");
       }
       dsl.deleteFrom(IAM_USER_ROLE).where(IAM_USER_ROLE.USER_ID.eq(userId)).execute();
       for (Long roleId : request.getRoleIds()) {
@@ -177,6 +185,108 @@ public class UserMutationService {
       authVersionService.bumpAuthVersion(userId, "PATCH_USER");
     }
     return userReadService.getUserDetail(userId);
+  }
+
+  @Transactional
+  public UserDetail createUser(CreateUserRequest request) {
+    if (request == null) {
+      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_CREATE_REQUEST_REQUIRED", "请求体不能为空");
+    }
+    String userType = request.getUserType() == null ? null : request.getUserType().getValue();
+    if (!"STAFF".equals(userType) && !"CONTRACTOR".equals(userType)) {
+      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_CREATE_TYPE_UNSUPPORTED",
+          "仅支持创建 STAFF / CONTRACTOR 用户");
+    }
+    if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
+      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_IDS_EMPTY", "角色列表不能为空");
+    }
+
+    OffsetDateTime now = OffsetDateTime.now();
+    Long userId = dsl.insertInto(IAM_USER)
+        .set(IAM_USER.USER_TYPE, userType)
+        .set(IAM_USER.SOURCE_TYPE, "CUSTOM")
+        .set(IAM_USER.STATUS, "ACTIVE")
+        .set(IAM_USER.AUTH_VERSION, 0)
+        .set(IAM_USER.USER_NAME, request.getUsername())
+        .set(IAM_USER.REAL_NAME, request.getRealName())
+        .set(IAM_USER.MOBILE, request.getMobile())
+        .set(IAM_USER.EMAIL, request.getEmail())
+        .set(IAM_USER.SOURCE, "MANUAL")
+        .set(IAM_USER.CREATED_BY, (Long) null)
+        .set(IAM_USER.CREATED_AT, now)
+        .set(IAM_USER.UPDATED_AT, now)
+        .returning(IAM_USER.ID)
+        .fetchOne(IAM_USER.ID);
+
+    String hash = passwordEncoder.encode(request.getPassword());
+    dsl.insertInto(IAM_CREDENTIAL)
+        .set(IAM_CREDENTIAL.USER_ID, userId)
+        .set(IAM_CREDENTIAL.PASSWORD_HASH, hash)
+        .set(IAM_CREDENTIAL.CREATED_AT, now)
+        .set(IAM_CREDENTIAL.UPDATED_AT, now)
+        .execute();
+
+    dsl.insertInto(IAM_IDENTITY)
+        .set(IAM_IDENTITY.USER_ID, userId)
+        .set(IAM_IDENTITY.PROVIDER, "password")
+        .set(IAM_IDENTITY.PROVIDER_USER_ID, request.getUsername())
+        .set(IAM_IDENTITY.UNION_ID, (String) null)
+        .set(IAM_IDENTITY.APP_ID, (String) null)
+        .set(IAM_IDENTITY.CREATED_AT, now)
+        .set(IAM_IDENTITY.DELETED_AT, (OffsetDateTime) null)
+        .execute();
+
+    PatchUserRequest patch = new PatchUserRequest()
+        .roleIds(new ArrayList<>(request.getRoleIds()))
+        .scopes(request.getScopes() == null ? null : new ArrayList<>(request.getScopes()));
+    return patchUser(userId, patch);
+  }
+
+  @Transactional
+  public UserDetail updateUserStatus(Long userId, UpdateUserStatusRequest request) {
+    PatchUserRequest patch = new PatchUserRequest().status(request == null ? null : request.getStatus());
+    return patchUser(userId, patch);
+  }
+
+  @Transactional
+  public UserDetail resetUserPassword(Long userId, ResetUserPasswordRequest request) {
+    PatchUserRequest patch = new PatchUserRequest().password(request == null ? null : request.getPassword());
+    return patchUser(userId, patch);
+  }
+
+  @Transactional
+  public void batchUpdateUserStatus(BatchUpdateUserStatusRequest request) {
+    if (request == null || request.getIds() == null || request.getIds().isEmpty()) {
+      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_STATUS_IDS_REQUIRED", "ids 不能为空");
+    }
+    for (Long userId : request.getIds()) {
+      updateUserStatus(userId, new UpdateUserStatusRequest().status(request.getStatus()));
+    }
+  }
+
+  @Transactional
+  public UserDetail updateUserRoles(Long userId, UpdateUserRolesRequest request) {
+    PatchUserRequest patch = new PatchUserRequest().roleIds(request == null ? null : request.getRoleIds());
+    return patchUser(userId, patch);
+  }
+
+  @Transactional(readOnly = true)
+  public UserDataScope getUserDataScope(Long userId) {
+    UserDetail userDetail = userReadService.getUserDetail(userId);
+    return userDetail.getDataScope() == null ? new UserDataScope().scopes(List.of()) : userDetail.getDataScope();
+  }
+
+  @Transactional
+  public UserDataScope updateUserDataScope(Long userId, UpdateUserDataScopeRequest request) {
+    List<Long> roleIds = dsl.select(IAM_USER_ROLE.ROLE_ID)
+        .from(IAM_USER_ROLE)
+        .where(IAM_USER_ROLE.USER_ID.eq(userId))
+        .fetch(IAM_USER_ROLE.ROLE_ID);
+    PatchUserRequest patch = new PatchUserRequest()
+        .roleIds(roleIds)
+        .scopes(request == null ? null : request.getScopes());
+    UserDetail userDetail = patchUser(userId, patch);
+    return userDetail.getDataScope() == null ? new UserDataScope().scopes(List.of()) : userDetail.getDataScope();
   }
 
   private void validateScopeDimensionsAgainstRoles(PatchUserRequest request) {

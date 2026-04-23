@@ -74,6 +74,7 @@ public class AuthSessionService {
         payload.userId(),
         payload.username(),
         permissions,
+        user.get(IAM_USER.AUTH_VERSION),
         securityProperties.getJwt().getUser().getSecret(),
         expirationSeconds);
 

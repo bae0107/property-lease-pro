@@ -18,6 +18,7 @@ public class UserJwtIssuer {
   public String issue(Long userId,
       String username,
       List<String> permissions,
+      Integer authVersion,
       String secret,
       int expirationSeconds) {
     SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
@@ -28,6 +29,9 @@ public class UserJwtIssuer {
         .issuedAt(new Date(nowMillis))
         .expiration(new Date(nowMillis + (long) expirationSeconds * 1000))
         .claim(SecurityConstants.CLAIM_USER_ID, userId);
+    if (authVersion != null) {
+      builder.claim(SecurityConstants.CLAIM_AUTH_VERSION, authVersion);
+    }
 
     if (permissions != null && !permissions.isEmpty()) {
       builder.claim(SecurityConstants.CLAIM_PERMISSIONS, permissions);
