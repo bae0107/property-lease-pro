@@ -280,7 +280,7 @@ public class GenerateIamManifestMojo extends AbstractMojo {
     BuiltinUser iamAdmin = user(iamAdminUserName, "IAM Admin", "STAFF", "ACTIVE", "BUILTIN",
         iamAdminMobile, iamAdminEmail, List.of(roleAdminCode), true, true);
     BuiltinUser system = user(systemUserName, "System", "SYSTEM", "ACTIVE", "BUILTIN",
-        systemMobile, systemEmail, List.of(roleSystemCode), false, true);
+        systemMobile, systemEmail, List.of(roleSystemCode), false, false);
     manifest.builtinUsers = List.of(iamAdmin, system);
 
     String digestSource = files.stream().map(Path::toString).sorted().collect(Collectors.joining("|"))
