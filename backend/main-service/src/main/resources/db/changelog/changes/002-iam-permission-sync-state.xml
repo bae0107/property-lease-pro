@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <changeSet id="002-iam-permission-sync-state" author="codex">
+    <createTable tableName="iam_permission_sync_state" remarks="权限 manifest 同步状态">
+      <column name="id" type="BIGINT" remarks="固定单行主键，取值 1">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="manifest_version" type="VARCHAR(50)" remarks="manifest 版本号"/>
+      <column name="manifest_checksum" type="VARCHAR(128)" remarks="manifest 校验值（SHA-256）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="synced_at" type="DATETIME(3)" remarks="最近同步时间">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+</databaseChangeLog>

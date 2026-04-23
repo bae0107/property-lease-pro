@@ -30,7 +30,7 @@ security:
   mode: gateway
   service-name: gateway
   permit-paths:
-    - /api/main-service/auth/login
+    - /api/main-service/auth/**
   jwt:
     user:
       secret: ${JWT_USER_SECRET}
