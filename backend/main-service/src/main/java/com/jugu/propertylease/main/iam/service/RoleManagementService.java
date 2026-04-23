@@ -176,7 +176,7 @@ public class RoleManagementService {
     }
 
     List<Long> ids = new ArrayList<>(new LinkedHashSet<>(batchRequest.getIds()));
-    List<Record> roles = dsl.selectFrom(IAM_ROLE).where(IAM_ROLE.ID.in(ids)).fetch();
+    var roles = dsl.selectFrom(IAM_ROLE).where(IAM_ROLE.ID.in(ids)).fetch();
     if (roles.size() != ids.size()) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "存在角色不存在");
     }

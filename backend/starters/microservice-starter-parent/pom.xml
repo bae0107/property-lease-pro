@@ -16,7 +16,7 @@
                   <forcedType>
                     <converter>com.jugu.propertylease.common.jooq.ShanghaiOffsetDateTimeConverter
                     </converter>
-                    <includeExpression>(?i:PUBLIC\.IAM_.*\.(CREATED_AT|UPDATED_AT|DELETED_AT|SYNCED_AT))
+                    <includeExpression>(?i:PUBLIC\.IAM_.*\..*_AT)
                     </includeExpression>
                     <objectType>COLUMN</objectType>
                     <userType>java.time.OffsetDateTime</userType>
