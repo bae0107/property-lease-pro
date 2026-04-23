@@ -23,6 +23,8 @@ import com.jugu.propertylease.main.api.model.UserDataScope;
 import com.jugu.propertylease.main.api.model.UserCreateFormMeta;
 import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.api.model.UserPageResult;
+import com.jugu.propertylease.main.iam.auth.AuthSessionService;
+import com.jugu.propertylease.main.iam.auth.PasswordLoginService;
 import com.jugu.propertylease.main.iam.page.IamPageService;
 import com.jugu.propertylease.main.iam.service.RoleManagementService;
 import com.jugu.propertylease.main.iam.service.UserFormMetaService;
