@@ -11,6 +11,7 @@ import com.jugu.propertylease.main.api.model.DataScopeDimension;
 import com.jugu.propertylease.main.api.model.Role;
 import com.jugu.propertylease.main.api.model.RoleType;
 import com.jugu.propertylease.main.api.model.SourceType;
+import com.jugu.propertylease.main.iam.service.EnumValueMapper;
 import java.util.List;
 import java.util.Set;
 import org.jooq.Condition;
@@ -80,7 +81,7 @@ public final class IamRolesPageResource implements JooqPageResourceDefinition<Ro
         .roleType(RoleType.fromValue(record.get(IAM_ROLE.ROLE_TYPE)))
         .sourceType(SourceType.fromValue(record.get(IAM_ROLE.SOURCE_TYPE)))
         .requiredDataScopeDimension(
-            DataScopeDimension.fromValue(record.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION)))
+            EnumValueMapper.nullableFromValue(record.get(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION), DataScopeDimension::fromValue))
         .description(record.get(IAM_ROLE.DESCRIPTION)).createdAt(record.get(IAM_ROLE.CREATED_AT))
         .updatedAt(record.get(IAM_ROLE.UPDATED_AT));
   }

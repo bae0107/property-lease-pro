@@ -105,7 +105,7 @@ Spring Cloud Gateway 中存在两个独立的过滤器层级：
 │  SecurityHeaderCleanFilter（GlobalFilter, order=-200）      │
 │    清洗外部不可信 Header（X-Service-Token 等）               │
 │  RateLimitFilter（GlobalFilter, order=-150）                 │
-│    限流，429 响应携带 traceId（从 exchange.attributes 读）    │
+│    限流，429 响应携带 traceId（attributes → header → UUID）  │
 │  RequestLoggingFilter（GlobalFilter, order=-50）             │
 │    记录请求日志，traceId 从 request header 读                │
 └─────────────────────────────────────────────────────────────┘
@@ -136,13 +136,18 @@ gateway:
 **职责**：按 IP 维度限流，超限返回 429。
 
 **traceId 读取**：执行时 ReactiveUserJwtFilter 已将 traceId 写入 `exchange.getAttributes()`（
-`ATTR_TRACE_ID` 常量），RateLimitFilter 直接读取：
+`ATTR_TRACE_ID` 常量），RateLimitFilter 按“attributes → header → UUID 生成”顺序兜底，确保 429 响应
+始终包含 traceId：
 
 ```java
 String traceId = exchange.getAttribute(ReactiveUserJwtFilter.ATTR_TRACE_ID);
 if (traceId == null) {
-    // 兜底：Client 请求本身携带了 X-Trace-Id（极端场景）
+    // 兜底1：Client 请求本身携带了 X-Trace-Id
     traceId = exchange.getRequest().getHeaders().getFirst(SecurityConstants.HEADER_TRACE_ID);
+}
+if (traceId == null || traceId.isBlank()) {
+    // 兜底2：最终生成 traceId，保证 429 错误响应可追踪
+    traceId = UUID.randomUUID().toString();
 }
 // 429 响应体：扁平格式 {"code":"GATEWAY_RATE_LIMIT_EXCEEDED","message":"...","traceId":"..."}
 ```
