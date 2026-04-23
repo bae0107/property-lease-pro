@@ -87,3 +87,9 @@ ali:
 region:
   file:
     path: "classpath:source/area.xml"
+
+iam:
+  bootstrap:
+    users:
+      iam-admin-initial-password: ${IAM_BOOTSTRAP_USERS_IAM_ADMIN_INITIAL_PASSWORD:}
+      reset-iam-admin-password-on-sync: ${IAM_BOOTSTRAP_USERS_RESET_IAM_ADMIN_PASSWORD_ON_SYNC:false}
