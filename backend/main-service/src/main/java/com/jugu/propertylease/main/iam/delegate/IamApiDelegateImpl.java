@@ -5,6 +5,11 @@ import com.jugu.propertylease.common.model.ListViewMeta;
 import com.jugu.propertylease.common.model.PageRequest;
 import com.jugu.propertylease.main.api.IamApiDelegate;
 import com.jugu.propertylease.main.api.model.DeleteUserRequest;
+import com.jugu.propertylease.main.api.model.LogoutRequest;
+import com.jugu.propertylease.main.api.model.LoginResult;
+import com.jugu.propertylease.main.api.model.PasswordLoginRequest;
+import com.jugu.propertylease.main.api.model.RefreshResult;
+import com.jugu.propertylease.main.api.model.RefreshTokenRequest;
 import com.jugu.propertylease.main.api.model.UpdateRoleRequest;
 import com.jugu.propertylease.main.api.model.UpdateRolePermissionsRequest;
 import com.jugu.propertylease.main.api.model.RoleDetail;
@@ -16,6 +21,8 @@ import com.jugu.propertylease.main.api.model.RolePageResult;
 import com.jugu.propertylease.main.api.model.UserCreateFormMeta;
 import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.api.model.UserPageResult;
+import com.jugu.propertylease.main.iam.auth.AuthSessionService;
+import com.jugu.propertylease.main.iam.auth.PasswordLoginService;
 import com.jugu.propertylease.main.iam.page.IamPageService;
 import com.jugu.propertylease.main.iam.service.RoleManagementService;
 import com.jugu.propertylease.main.iam.service.UserFormMetaService;
@@ -28,6 +35,8 @@ import org.springframework.stereotype.Service;
 public class IamApiDelegateImpl implements IamApiDelegate {
 
   private final IamPageService iamPageService;
+  private final PasswordLoginService passwordLoginService;
+  private final AuthSessionService authSessionService;
   private final UserFormMetaService userFormMetaService;
   private final UserLifecycleService userLifecycleService;
   private final UserMutationService userMutationService;
@@ -35,15 +44,31 @@ public class IamApiDelegateImpl implements IamApiDelegate {
 
   public IamApiDelegateImpl(
       IamPageService iamPageService,
+      PasswordLoginService passwordLoginService,
+      AuthSessionService authSessionService,
       UserFormMetaService userFormMetaService,
       UserLifecycleService userLifecycleService,
       UserMutationService userMutationService,
       RoleManagementService roleManagementService) {
     this.iamPageService = iamPageService;
+    this.passwordLoginService = passwordLoginService;
+    this.authSessionService = authSessionService;
     this.userFormMetaService = userFormMetaService;
     this.userLifecycleService = userLifecycleService;
     this.userMutationService = userMutationService;
     this.roleManagementService = roleManagementService;
+  }
+
+  public LoginResult passwordLogin(PasswordLoginRequest passwordLoginRequest) {
+    return passwordLoginService.login(passwordLoginRequest);
+  }
+
+  public RefreshResult refreshToken(RefreshTokenRequest refreshTokenRequest) {
+    return authSessionService.refresh(refreshTokenRequest);
+  }
+
+  public void logout(LogoutRequest logoutRequest) {
+    authSessionService.logout(logoutRequest);
   }
 
   @Override
