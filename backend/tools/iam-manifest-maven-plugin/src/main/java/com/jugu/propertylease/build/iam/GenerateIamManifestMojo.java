@@ -2,7 +2,6 @@ package com.jugu.propertylease.build.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -246,7 +245,6 @@ public class GenerateIamManifestMojo extends AbstractMojo {
   private Manifest buildManifest(Map<String, PermissionDef> permissions,
       Map<String, Set<String>> roleToPermissionCodes, List<Path> files) throws MojoExecutionException {
     Manifest manifest = new Manifest();
-    manifest.version = "v1";
 
     List<PermissionItem> permissionItems = permissions.values().stream()
         .sorted(Comparator.comparing(p -> p.code))
@@ -264,6 +262,7 @@ public class GenerateIamManifestMojo extends AbstractMojo {
         })
         .collect(Collectors.toList());
     manifest.permissions = permissionItems;
+    manifest.version = buildPermissionVersion(permissionItems);
 
     BuiltinRole adminRole = role(roleAdminCode, "IAM管理员", "STAFF",
         roleToPermissionCodes.get("ADMIN"));
@@ -286,6 +285,26 @@ public class GenerateIamManifestMojo extends AbstractMojo {
         .collect(Collectors.joining("|"));
     manifest.checksum = sha256(digestSource);
     return manifest;
+  }
+
+  private String buildPermissionVersion(List<PermissionItem> permissionItems)
+      throws MojoExecutionException {
+    String digest = permissionDigest(permissionItems);
+    String shortDigest = digest.substring(0, 12);
+    return "v" + shortDigest;
+  }
+
+  private String permissionDigest(List<PermissionItem> permissionItems) throws MojoExecutionException {
+    if (permissionItems == null || permissionItems.isEmpty()) {
+      return sha256("");
+    }
+    List<String> normalizedPermissions = permissionItems.stream()
+        .map(item -> item.code + ":" + item.name + ":" + item.description + ":"
+            + (item.builtinRoles == null ? ""
+            : item.builtinRoles.stream().sorted().collect(Collectors.joining(","))))
+        .sorted()
+        .toList();
+    return sha256(String.join("|", normalizedPermissions));
   }
 
   private BuiltinRole role(String code, String name, String roleType, Set<String> permissionCodes) {
