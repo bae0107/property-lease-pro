@@ -8,11 +8,11 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_CREDENTIAL;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
-import static com.jugu.propertylease.main.jooq.Tables.IAM_PERMISSION_SYNC_STATE;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jugu.propertylease.common.exception.BusinessException;
+import com.jugu.propertylease.main.iam.repo.IamPermissionManifestRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
@@ -45,6 +45,7 @@ public class PermissionManifestBootstrap {
   private final DSLContext dsl;
   private final ObjectMapper objectMapper;
   private final ResourceLoader resourceLoader;
+  private final IamPermissionManifestRepository permissionManifestRepository;
 
   @Value("${iam.permissions.manifest-location:classpath:/iam/permissions-manifest.json}")
   private String manifestLocation;
@@ -58,10 +59,11 @@ public class PermissionManifestBootstrap {
   private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
   public PermissionManifestBootstrap(DSLContext dsl, ObjectMapper objectMapper,
-      ResourceLoader resourceLoader) {
+      ResourceLoader resourceLoader, IamPermissionManifestRepository permissionManifestRepository) {
     this.dsl = dsl;
     this.objectMapper = objectMapper;
     this.resourceLoader = resourceLoader;
+    this.permissionManifestRepository = permissionManifestRepository;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -69,10 +71,7 @@ public class PermissionManifestBootstrap {
   public void syncOnStartup() {
     Manifest manifest = loadManifest();
     String checksum = checksum(manifest.rawJson());
-    String currentChecksum = dsl.select(IAM_PERMISSION_SYNC_STATE.MANIFEST_CHECKSUM)
-        .from(IAM_PERMISSION_SYNC_STATE)
-        .where(IAM_PERMISSION_SYNC_STATE.ID.eq(1L))
-        .fetchOne(IAM_PERMISSION_SYNC_STATE.MANIFEST_CHECKSUM);
+    String currentChecksum = permissionManifestRepository.findCurrentManifestChecksum();
     if (checksum.equals(currentChecksum)) {
       return;
     }
@@ -82,21 +81,7 @@ public class PermissionManifestBootstrap {
     syncBuiltinUsers(manifest.builtinUsers());
 
     OffsetDateTime now = OffsetDateTime.now();
-    if (currentChecksum == null) {
-      dsl.insertInto(IAM_PERMISSION_SYNC_STATE)
-          .set(IAM_PERMISSION_SYNC_STATE.ID, 1L)
-          .set(IAM_PERMISSION_SYNC_STATE.MANIFEST_VERSION, manifest.version())
-          .set(IAM_PERMISSION_SYNC_STATE.MANIFEST_CHECKSUM, checksum)
-          .set(IAM_PERMISSION_SYNC_STATE.SYNCED_AT, now)
-          .execute();
-    } else {
-      dsl.update(IAM_PERMISSION_SYNC_STATE)
-          .set(IAM_PERMISSION_SYNC_STATE.MANIFEST_VERSION, manifest.version())
-          .set(IAM_PERMISSION_SYNC_STATE.MANIFEST_CHECKSUM, checksum)
-          .set(IAM_PERMISSION_SYNC_STATE.SYNCED_AT, now)
-          .where(IAM_PERMISSION_SYNC_STATE.ID.eq(1L))
-          .execute();
-    }
+    permissionManifestRepository.upsertManifestSyncState(manifest.version(), checksum, now);
   }
 
   private Manifest loadManifest() {
@@ -127,42 +112,22 @@ public class PermissionManifestBootstrap {
     }
 
     OffsetDateTime now = OffsetDateTime.now();
-    Set<String> dbCodes = new LinkedHashSet<>(dsl.select(IAM_PERMISSION.CODE).from(IAM_PERMISSION)
-        .fetch(IAM_PERMISSION.CODE));
+    Set<String> dbCodes = permissionManifestRepository.findAllPermissionCodes();
 
     for (ManifestPermission item : byCode.values()) {
       PermissionCode parsed = parseCode(item.code);
-      if (dbCodes.contains(item.code)) {
-        dsl.update(IAM_PERMISSION)
-            .set(IAM_PERMISSION.NAME, item.name == null ? item.code : item.name)
-            .set(IAM_PERMISSION.DESCRIPTION, item.description)
-            .set(IAM_PERMISSION.RESOURCE, parsed.resource())
-            .set(IAM_PERMISSION.ACTION, parsed.action())
-            .set(IAM_PERMISSION.DELETED_AT, (OffsetDateTime) null)
-            .set(IAM_PERMISSION.UPDATED_AT, now)
-            .where(IAM_PERMISSION.CODE.eq(item.code))
-            .execute();
-      } else {
-        dsl.insertInto(IAM_PERMISSION)
-            .set(IAM_PERMISSION.CODE, item.code)
-            .set(IAM_PERMISSION.NAME, item.name == null ? item.code : item.name)
-            .set(IAM_PERMISSION.RESOURCE, parsed.resource())
-            .set(IAM_PERMISSION.ACTION, parsed.action())
-            .set(IAM_PERMISSION.DESCRIPTION, item.description)
-            .set(IAM_PERMISSION.DELETED_AT, (OffsetDateTime) null)
-            .set(IAM_PERMISSION.CREATED_AT, now)
-            .set(IAM_PERMISSION.UPDATED_AT, now)
-            .execute();
-      }
+      permissionManifestRepository.upsertPermission(
+          item.code,
+          item.name == null ? item.code : item.name,
+          item.description,
+          parsed.resource(),
+          parsed.action(),
+          now);
     }
 
     for (String dbCode : dbCodes) {
       if (!byCode.containsKey(dbCode)) {
-        dsl.update(IAM_PERMISSION)
-            .set(IAM_PERMISSION.DELETED_AT, now)
-            .set(IAM_PERMISSION.UPDATED_AT, now)
-            .where(IAM_PERMISSION.CODE.eq(dbCode))
-            .execute();
+        permissionManifestRepository.markPermissionDeleted(dbCode, now);
       }
     }
   }
