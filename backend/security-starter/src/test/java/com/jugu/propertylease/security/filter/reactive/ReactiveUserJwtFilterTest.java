@@ -130,6 +130,31 @@ class ReactiveUserJwtFilterTest {
     assertThat(bodyAsString(exchange)).contains(InvalidTokenException.TOKEN_EXPIRED);
   }
 
+  @Test
+  void staleAuthVersion_returns401() {
+    SecretKey key = Keys.hmacShaKeyFor(USER_SECRET.getBytes(StandardCharsets.UTF_8));
+    String validToken = Jwts.builder()
+        .subject("user@example.com")
+        .claim("userId", 99L)
+        .claim("authVersion", 1)
+        .issuedAt(new Date())
+        .expiration(new Date(System.currentTimeMillis() + 300_000))
+        .signWith(key)
+        .compact();
+
+    ReactiveUserJwtFilter staleRejectFilter = new ReactiveUserJwtFilter(parser, generator, props,
+        (userId, authVersion) -> false);
+
+    var exchange = buildExchange("/api/v1/orders", "Bearer " + validToken);
+    var chain = chainThatShouldNotBeCalled();
+    StepVerifier.create(staleRejectFilter.filter(exchange, chain))
+        .verifyComplete();
+
+    assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    assertThat(bodyAsString(exchange)).contains(InvalidTokenException.TOKEN_INVALID)
+        .contains("stale");
+  }
+
   // ─── authentication success ───
 
   @Test

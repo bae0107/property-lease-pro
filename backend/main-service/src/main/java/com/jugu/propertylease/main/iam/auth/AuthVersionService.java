@@ -1,5 +1,7 @@
 package com.jugu.propertylease.main.iam.auth;
 
+import java.util.Optional;
+
 /**
  * 用户认证版本服务。
  *
@@ -14,5 +16,12 @@ public interface AuthVersionService {
    * @param reason 触发原因（审计字段）
    */
   void bumpAuthVersion(Long userId, String reason);
-}
 
+  /**
+   * 查询用户当前 authVersion。
+   *
+   * @param userId 用户 ID
+   * @return 用户存在且未删除时返回 authVersion；否则返回 empty
+   */
+  Optional<Integer> getCurrentAuthVersion(Long userId);
+}

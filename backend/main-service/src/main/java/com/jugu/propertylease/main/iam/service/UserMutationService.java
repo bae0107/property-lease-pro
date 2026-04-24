@@ -26,6 +26,10 @@ import java.util.List;
 import java.util.Set;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
+<<<<<<< codex/task-title-7hnlvk
+import org.jooq.Record3;
+=======
+>>>>>>> master
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -124,19 +128,24 @@ public class UserMutationService {
     }
 
     if (request.getRoleIds() != null) {
-      if (request.getRoleIds().isEmpty()) {
-        throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_IDS_EMPTY",
-            "角色列表不能为空");
+      List<Long> normalizedRoleIds = normalizeRoleIds(request.getRoleIds());
+      List<Record3<Long, String, String>> roleRows = dsl.select(IAM_ROLE.ID, IAM_ROLE.ROLE_TYPE,
+              IAM_ROLE.NAME)
+          .from(IAM_ROLE)
+          .where(IAM_ROLE.ID.in(normalizedRoleIds))
+          .fetch();
+      if (roleRows.size() != normalizedRoleIds.size()) {
+        throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_NOT_FOUND",
+            "所选角色包含无效 ID");
       }
-      boolean hasMismatchRole = dsl.fetchExists(dsl.selectOne().from(IAM_ROLE)
-          .where(IAM_ROLE.ID.in(request.getRoleIds()))
-          .and(IAM_ROLE.ROLE_TYPE.ne(userBase.value1())));
+      boolean hasMismatchRole = roleRows.stream()
+          .anyMatch(role -> !userBase.value1().equals(role.value2()));
       if (hasMismatchRole) {
         throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_TYPE_MISMATCH",
             "所选角色必须全部与用户类型一致");
       }
       dsl.deleteFrom(IAM_USER_ROLE).where(IAM_USER_ROLE.USER_ID.eq(userId)).execute();
-      for (Long roleId : request.getRoleIds()) {
+      for (Long roleId : normalizedRoleIds) {
         dsl.insertInto(IAM_USER_ROLE)
             .set(IAM_USER_ROLE.USER_ID, userId)
             .set(IAM_USER_ROLE.ROLE_ID, roleId)
@@ -146,8 +155,15 @@ public class UserMutationService {
       shouldBumpAuthVersion = true;
     }
 
-    if (request.getRoleIds() != null) {
-      validateScopeDimensionsAgainstRoles(request);
+    if (request.getRoleIds() != null || request.getScopes() != null) {
+      List<Long> effectiveRoleIds =
+          request.getRoleIds() != null
+              ? normalizeRoleIds(request.getRoleIds())
+              : dsl.select(IAM_USER_ROLE.ROLE_ID)
+                  .from(IAM_USER_ROLE)
+                  .where(IAM_USER_ROLE.USER_ID.eq(userId))
+                  .fetch(IAM_USER_ROLE.ROLE_ID);
+      validateScopeDimensionsAgainstRoles(effectiveRoleIds, request.getScopes());
     }
 
     if (request.getScopes() != null) {
@@ -289,8 +305,20 @@ public class UserMutationService {
     return userDetail.getDataScope() == null ? new UserDataScope().scopes(List.of()) : userDetail.getDataScope();
   }
 
-  private void validateScopeDimensionsAgainstRoles(PatchUserRequest request) {
-    List<Long> roleIds = request.getRoleIds();
+  private List<Long> normalizeRoleIds(List<Long> roleIds) {
+    if (roleIds == null || roleIds.isEmpty()) {
+      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_IDS_EMPTY",
+          "角色列表不能为空");
+    }
+    List<Long> normalized = new ArrayList<>(new LinkedHashSet<>(roleIds));
+    if (normalized.stream().anyMatch(id -> id == null || id <= 0)) {
+      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_ID_INVALID",
+          "角色 ID 必须为正整数");
+    }
+    return normalized;
+  }
+
+  private void validateScopeDimensionsAgainstRoles(List<Long> roleIds, List<DataScopeItem> scopes) {
     if (roleIds == null || roleIds.isEmpty()) {
       return;
     }
@@ -303,12 +331,12 @@ public class UserMutationService {
     if (requiredDimensions.isEmpty()) {
       return;
     }
-    if (request.getScopes() == null || request.getScopes().isEmpty()) {
+    if (scopes == null || scopes.isEmpty()) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_SCOPE_REQUIRED",
           "所选角色要求配置数据权限");
     }
     Set<String> payloadDimensions = new LinkedHashSet<>();
-    for (DataScopeItem item : request.getScopes()) {
+    for (DataScopeItem item : scopes) {
       payloadDimensions.add(item.getDimension().getValue());
     }
     if (!payloadDimensions.equals(requiredDimensions)) {

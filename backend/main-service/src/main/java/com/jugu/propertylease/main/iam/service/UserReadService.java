@@ -5,6 +5,7 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
+import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.api.model.DataScopeItem;
 import com.jugu.propertylease.main.api.model.Role;
 import com.jugu.propertylease.main.api.model.RoleType;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
@@ -40,7 +42,7 @@ public class UserReadService {
         .and(IAM_USER.DELETED_AT.isNull())
         .fetchOne();
     if (record == null) {
-      throw new IllegalArgumentException("User not found");
+      throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_USER_NOT_FOUND", "用户不存在");
     }
 
     List<Role> roles = dsl.select(IAM_ROLE.fields())

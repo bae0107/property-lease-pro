@@ -53,14 +53,23 @@ public class ReactiveUserJwtFilter implements WebFilter, Ordered {
   private final JwtTokenParser jwtTokenParser;
   private final ServiceTokenGenerator serviceTokenGenerator;
   private final SecurityProperties properties;
+  private final UserTokenVersionChecker userTokenVersionChecker;
   private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
   public ReactiveUserJwtFilter(JwtTokenParser jwtTokenParser,
       ServiceTokenGenerator serviceTokenGenerator,
       SecurityProperties properties) {
+    this(jwtTokenParser, serviceTokenGenerator, properties, (userId, authVersion) -> true);
+  }
+
+  public ReactiveUserJwtFilter(JwtTokenParser jwtTokenParser,
+      ServiceTokenGenerator serviceTokenGenerator,
+      SecurityProperties properties,
+      UserTokenVersionChecker userTokenVersionChecker) {
     this.jwtTokenParser = jwtTokenParser;
     this.serviceTokenGenerator = serviceTokenGenerator;
     this.properties = properties;
+    this.userTokenVersionChecker = userTokenVersionChecker;
   }
 
   @Override
@@ -122,6 +131,10 @@ public class ReactiveUserJwtFilter implements WebFilter, Ordered {
     if (payload.authVersion() == null || payload.authVersion() < 0) {
       throw new InvalidTokenException(InvalidTokenException.TOKEN_INVALID,
           "User token authVersion claim is required");
+    }
+    if (!userTokenVersionChecker.isCurrent(payload.userId(), payload.authVersion())) {
+      throw new InvalidTokenException(InvalidTokenException.TOKEN_INVALID,
+          "User token authVersion is stale");
     }
   }
 

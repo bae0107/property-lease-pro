@@ -45,6 +45,9 @@ public class GatewayProperties {
   @Valid
   @NotNull
   private CorsProperties cors = new CorsProperties();
+  @Valid
+  @NotNull
+  private AuthVersionProperties authVersion = new AuthVersionProperties();
 
   // ----------------------------------------------------------------
   // 内嵌配置类
@@ -84,6 +87,14 @@ public class GatewayProperties {
 
   public void setCors(CorsProperties cors) {
     this.cors = cors;
+  }
+
+  public AuthVersionProperties getAuthVersion() {
+    return authVersion;
+  }
+
+  public void setAuthVersion(AuthVersionProperties authVersion) {
+    this.authVersion = authVersion;
   }
 
   /**
@@ -214,6 +225,66 @@ public class GatewayProperties {
 
     public void setAllowedOrigins(List<String> allowedOrigins) {
       this.allowedOrigins = allowedOrigins;
+    }
+  }
+
+  /**
+   * 用户 token authVersion 校验配置。
+   */
+  public static class AuthVersionProperties {
+
+    /**
+     * 是否开启与 main-service 的 authVersion 一致性校验。
+     */
+    private boolean enabled = true;
+
+    /**
+     * 结果缓存时长（秒）。
+     */
+    @Positive
+    private int cacheTtlSeconds = 10;
+
+    /**
+     * 调用 main-service 超时时间（毫秒）。
+     */
+    @Positive
+    private int requestTimeoutMillis = 500;
+
+    /**
+     * 调用失败时是否放行，默认 false（fail-closed）。
+     */
+    private boolean failOpen = false;
+
+    public boolean isEnabled() {
+      return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+      this.enabled = enabled;
+    }
+
+    public int getCacheTtlSeconds() {
+      return cacheTtlSeconds;
+    }
+
+    public void setCacheTtlSeconds(int cacheTtlSeconds) {
+      this.cacheTtlSeconds = cacheTtlSeconds;
+    }
+
+    public int getRequestTimeoutMillis() {
+      return requestTimeoutMillis;
+    }
+
+    public void setRequestTimeoutMillis(int requestTimeoutMillis) {
+      this.requestTimeoutMillis = requestTimeoutMillis;
+    }
+
+    public boolean isFailOpen() {
+      return failOpen;
+    }
+
+    public void setFailOpen(boolean failOpen) {
+      this.failOpen = failOpen;
     }
   }
 }

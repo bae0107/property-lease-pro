@@ -68,7 +68,7 @@ public class UserLifecycleService {
 
     String tombstonePrefix = "__deleted__" + userId + "__";
     String tombstoneUserName = truncate(tombstonePrefix + oldUserName, 100);
-    String tombstoneMobile = truncate("D" + userId + "00000000000000000000", 20);
+    String tombstoneMobile = "D" + userId;
     String tombstoneEmail = oldEmail == null ? null : truncate(tombstonePrefix + oldEmail, 200);
     OffsetDateTime now = OffsetDateTime.now();
 

@@ -3,6 +3,7 @@ package com.jugu.propertylease.main.iam.auth;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import org.jooq.DSLContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,5 +36,15 @@ public class JooqAuthVersionService implements AuthVersionService {
       return;
     }
     log.info("authVersion bumped for userId={} reason={}", userId, reason);
+  }
+
+  @Override
+  public Optional<Integer> getCurrentAuthVersion(Long userId) {
+    Integer currentVersion = dsl.select(IAM_USER.AUTH_VERSION)
+        .from(IAM_USER)
+        .where(IAM_USER.ID.eq(userId))
+        .and(IAM_USER.DELETED_AT.isNull())
+        .fetchOne(IAM_USER.AUTH_VERSION);
+    return Optional.ofNullable(currentVersion);
   }
 }
