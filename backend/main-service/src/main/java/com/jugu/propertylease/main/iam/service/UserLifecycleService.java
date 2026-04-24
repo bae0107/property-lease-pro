@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserLifecycleService {
 
-  private static final String SYSTEM_ADMIN_ROLE_CODE = "SYSTEM_ADMIN";
+  private static final String SYSTEM_ADMIN_ROLE_CODE = "ROLE_IAM_ADMIN";
 
   private final DSLContext dsl;
   private final AuthVersionService authVersionService;
