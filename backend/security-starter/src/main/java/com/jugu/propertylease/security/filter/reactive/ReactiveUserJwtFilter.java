@@ -20,6 +20,7 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Gateway 专用响应式过滤器：验证 User JWT，转换为携带用户上下文的 Service JWT 后转发。
@@ -109,10 +110,11 @@ public class ReactiveUserJwtFilter implements WebFilter, Ordered {
     // 4. 解析 User JWT（用 fromCallable 包装同步 CPU 操作）
     ServerWebExchange finalExchange = exchange;
     return Mono.fromCallable(() -> jwtTokenParser.parseUserToken(bearerToken, userSecret))
-        .flatMap(payload -> {
+        .flatMap(payload -> Mono.fromCallable(() -> {
           validateUserTokenVersion(payload);
-          return chain.filter(buildForwardExchange(finalExchange, payload));
-        })
+          return payload;
+        }).subscribeOn(Schedulers.boundedElastic()))
+        .flatMap(payload -> chain.filter(buildForwardExchange(finalExchange, payload)))
         .onErrorResume(InvalidTokenException.class,
             e -> write401(finalExchange, e.getErrorCode(), e.getMessage()))
         .onErrorResume(Exception.class,

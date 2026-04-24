@@ -33,7 +33,10 @@ public class MainServiceUserTokenVersionChecker implements UserTokenVersionCheck
   private final String checkEndpoint;
   private final ObjectMapper objectMapper;
   private final HttpClient httpClient;
-  private final String serviceToken;
+  private final ServiceTokenGenerator serviceTokenGenerator;
+  private final String serviceName;
+  private final String serviceJwtSecret;
+  private final int serviceJwtExpirationSeconds;
   private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
   public MainServiceUserTokenVersionChecker(GatewayProperties gatewayProperties,
@@ -47,12 +50,10 @@ public class MainServiceUserTokenVersionChecker implements UserTokenVersionCheck
     this.httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofMillis(authVersionProperties.getRequestTimeoutMillis()))
         .build();
-    this.serviceToken = serviceTokenGenerator.generate(
-        securityProperties.getServiceName(),
-        null,
-        List.of(),
-        securityProperties.getJwt().getService().getSecret(),
-        securityProperties.getJwt().getService().getExpiration());
+    this.serviceTokenGenerator = serviceTokenGenerator;
+    this.serviceName = securityProperties.getServiceName();
+    this.serviceJwtSecret = securityProperties.getJwt().getService().getSecret();
+    this.serviceJwtExpirationSeconds = securityProperties.getJwt().getService().getExpiration();
   }
 
   @Override
@@ -83,7 +84,7 @@ public class MainServiceUserTokenVersionChecker implements UserTokenVersionCheck
           + "&authVersion=" + URLEncoder.encode(authVersion.toString(), StandardCharsets.UTF_8);
       HttpRequest request = HttpRequest.newBuilder(URI.create(uri))
           .timeout(Duration.ofMillis(authVersionProperties.getRequestTimeoutMillis()))
-          .header(SecurityConstants.HEADER_SERVICE_TOKEN, serviceToken)
+          .header(SecurityConstants.HEADER_SERVICE_TOKEN, generateServiceToken())
           .GET()
           .build();
       HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -99,6 +100,11 @@ public class MainServiceUserTokenVersionChecker implements UserTokenVersionCheck
           userId, authVersion, authVersionProperties.isFailOpen(), ex);
       return authVersionProperties.isFailOpen();
     }
+  }
+
+  private String generateServiceToken() {
+    return serviceTokenGenerator.generate(serviceName, null, List.of(), serviceJwtSecret,
+        serviceJwtExpirationSeconds);
   }
 
   private record CacheEntry(boolean current, long expireAtMillis) {
