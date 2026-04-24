@@ -15,4 +15,16 @@ public interface IamPermissionManifestRepository {
       OffsetDateTime now);
 
   void markPermissionDeleted(String code, OffsetDateTime now);
+  Long findRoleIdByCode(String roleCode);
+
+  Long insertBuiltinRole(String name, String code, String roleType, String requiredDataScopeDimension,
+      String description, OffsetDateTime now);
+
+  void updateBuiltinRole(Long roleId, String name, String roleType, String requiredDataScopeDimension,
+      String description, OffsetDateTime now);
+
+  Long findActivePermissionIdByCode(String permissionCode);
+
+  void replaceRolePermissions(Long roleId, Set<Long> permissionIds);
+
 }

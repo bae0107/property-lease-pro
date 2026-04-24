@@ -2,7 +2,6 @@ package com.jugu.propertylease.main.iam.bootstrap;
 
 import static com.jugu.propertylease.main.jooq.Tables.IAM_PERMISSION;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
-import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE_PERMISSION;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_IDENTITY;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_CREDENTIAL;
@@ -137,35 +136,26 @@ public class PermissionManifestBootstrap {
       return;
     }
     OffsetDateTime now = OffsetDateTime.now();
-    Map<String, Long> roleIdByCode = new LinkedHashMap<>();
-
     for (ManifestRole role : builtinRoles) {
-      Long roleId = dsl.select(IAM_ROLE.ID).from(IAM_ROLE).where(IAM_ROLE.CODE.eq(role.code))
-          .fetchOne(IAM_ROLE.ID);
+      Long roleId = permissionManifestRepository.findRoleIdByCode(role.code);
+      String roleType = role.roleType == null ? "STAFF" : role.roleType;
       if (roleId == null) {
-        roleId = dsl.insertInto(IAM_ROLE)
-            .set(IAM_ROLE.NAME, role.name)
-            .set(IAM_ROLE.CODE, role.code)
-            .set(IAM_ROLE.ROLE_TYPE, role.roleType == null ? "STAFF" : role.roleType)
-            .set(IAM_ROLE.SOURCE_TYPE, "BUILTIN")
-            .set(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION, role.requiredDataScopeDimension)
-            .set(IAM_ROLE.DESCRIPTION, role.description)
-            .set(IAM_ROLE.CREATED_AT, now)
-            .set(IAM_ROLE.UPDATED_AT, now)
-            .returning(IAM_ROLE.ID)
-            .fetchOne(IAM_ROLE.ID);
+        roleId = permissionManifestRepository.insertBuiltinRole(
+            role.name,
+            role.code,
+            roleType,
+            role.requiredDataScopeDimension,
+            role.description,
+            now);
       } else {
-        dsl.update(IAM_ROLE)
-            .set(IAM_ROLE.NAME, role.name)
-            .set(IAM_ROLE.ROLE_TYPE, role.roleType == null ? "STAFF" : role.roleType)
-            .set(IAM_ROLE.SOURCE_TYPE, "BUILTIN")
-            .set(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION, role.requiredDataScopeDimension)
-            .set(IAM_ROLE.DESCRIPTION, role.description)
-            .set(IAM_ROLE.UPDATED_AT, now)
-            .where(IAM_ROLE.ID.eq(roleId))
-            .execute();
+        permissionManifestRepository.updateBuiltinRole(
+            roleId,
+            role.name,
+            roleType,
+            role.requiredDataScopeDimension,
+            role.description,
+            now);
       }
-      roleIdByCode.put(role.code, roleId);
 
       List<String> declaredPermissions = role.permissions == null ? List.of() : role.permissions;
       if (SYSTEM_ROLE_CODE.equals(role.code) && !declaredPermissions.isEmpty()) {
@@ -175,11 +165,7 @@ public class PermissionManifestBootstrap {
       }
       Set<Long> permissionIds = new LinkedHashSet<>();
       for (String permissionCode : declaredPermissions) {
-        Long permissionId = dsl.select(IAM_PERMISSION.ID)
-            .from(IAM_PERMISSION)
-            .where(IAM_PERMISSION.CODE.eq(permissionCode))
-            .and(IAM_PERMISSION.DELETED_AT.isNull())
-            .fetchOne(IAM_PERMISSION.ID);
+        Long permissionId = permissionManifestRepository.findActivePermissionIdByCode(permissionCode);
         if (permissionId == null) {
           throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR,
               "IAM_BOOTSTRAP_PERMISSION_MISSING",
@@ -188,13 +174,7 @@ public class PermissionManifestBootstrap {
         permissionIds.add(permissionId);
       }
 
-      dsl.deleteFrom(IAM_ROLE_PERMISSION).where(IAM_ROLE_PERMISSION.ROLE_ID.eq(roleId)).execute();
-      for (Long permissionId : permissionIds) {
-        dsl.insertInto(IAM_ROLE_PERMISSION)
-            .set(IAM_ROLE_PERMISSION.ROLE_ID, roleId)
-            .set(IAM_ROLE_PERMISSION.PERMISSION_ID, permissionId)
-            .execute();
-      }
+      permissionManifestRepository.replaceRolePermissions(roleId, permissionIds);
     }
   }
 
