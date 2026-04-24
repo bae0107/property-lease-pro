@@ -9,7 +9,7 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
 import com.jugu.propertylease.main.iam.repo.IamUserMutationRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
-import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
+import com.jugu.propertylease.main.iam.repo.model.RoleTypeSnapshot;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
@@ -94,10 +94,14 @@ public class JooqIamUserMutationRepository implements IamUserMutationRepository 
   }
 
   @Override
-  public List<IamRole> findRolesByIds(List<Long> roleIds) {
-    return dsl.selectFrom(IAM_ROLE)
+  public List<RoleTypeSnapshot> findRoleTypeSnapshotsByIds(List<Long> roleIds) {
+    return dsl.select(IAM_ROLE.ID, IAM_ROLE.ROLE_TYPE, IAM_ROLE.NAME)
+        .from(IAM_ROLE)
         .where(IAM_ROLE.ID.in(roleIds))
-        .fetchInto(IamRole.class);
+        .fetch(r -> new RoleTypeSnapshot(
+            r.get(IAM_ROLE.ID),
+            r.get(IAM_ROLE.ROLE_TYPE),
+            r.get(IAM_ROLE.NAME)));
   }
 
   @Override

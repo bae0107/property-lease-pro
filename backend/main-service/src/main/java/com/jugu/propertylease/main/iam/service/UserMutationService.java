@@ -89,14 +89,13 @@ public class UserMutationService {
 
     if (request.getRoleIds() != null) {
       List<Long> normalizedRoleIds = normalizeRoleIds(request.getRoleIds());
-      List<com.jugu.propertylease.main.jooq.tables.pojos.IamRole> roleRows =
-          userMutationRepository.findRolesByIds(normalizedRoleIds);
+      var roleRows = userMutationRepository.findRoleTypeSnapshotsByIds(normalizedRoleIds);
       if (roleRows.size() != normalizedRoleIds.size()) {
         throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_NOT_FOUND",
             "所选角色包含无效 ID");
       }
       boolean hasMismatchRole = roleRows.stream()
-          .anyMatch(role -> !userBase.userType().equals(role.getRoleType()));
+          .anyMatch(role -> !userBase.userType().equals(role.roleType()));
       if (hasMismatchRole) {
         throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_TYPE_MISMATCH",
             "所选角色必须全部与用户类型一致");

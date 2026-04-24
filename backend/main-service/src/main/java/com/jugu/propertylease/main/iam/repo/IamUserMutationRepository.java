@@ -1,7 +1,7 @@
 package com.jugu.propertylease.main.iam.repo;
 
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
-import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
+import com.jugu.propertylease.main.iam.repo.model.RoleTypeSnapshot;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +23,7 @@ public interface IamUserMutationRepository {
 
   void insertCredential(Long userId, String passwordHash, OffsetDateTime now);
 
-  List<IamRole> findRolesByIds(List<Long> roleIds);
+  List<RoleTypeSnapshot> findRoleTypeSnapshotsByIds(List<Long> roleIds);
 
   void replaceUserRoles(Long userId, List<Long> roleIds, OffsetDateTime now);
 
