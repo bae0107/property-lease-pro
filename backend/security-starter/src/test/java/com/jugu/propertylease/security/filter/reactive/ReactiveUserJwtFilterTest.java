@@ -139,6 +139,7 @@ class ReactiveUserJwtFilterTest {
         .subject("user@example.com")
         .claim("userId", 99L)
         .claim("permissions", List.of("order:read"))
+        .claim("authVersion", 1)
         .issuedAt(new Date())
         .expiration(new Date(System.currentTimeMillis() + 300_000))
         .signWith(key)
@@ -177,6 +178,7 @@ class ReactiveUserJwtFilterTest {
     String valid = Jwts.builder()
         .subject("u")
         .claim("userId", 1L)
+        .claim("authVersion", 1)
         .issuedAt(new Date())
         .expiration(new Date(System.currentTimeMillis() + 300_000))
         .signWith(key).compact();
@@ -198,7 +200,7 @@ class ReactiveUserJwtFilterTest {
   void traceId_preservedWhenPresent() {
     SecretKey key = Keys.hmacShaKeyFor(USER_SECRET.getBytes(StandardCharsets.UTF_8));
     String valid = Jwts.builder()
-        .subject("u").claim("userId", 1L)
+        .subject("u").claim("userId", 1L).claim("authVersion", 1)
         .issuedAt(new Date())
         .expiration(new Date(System.currentTimeMillis() + 300_000))
         .signWith(key).compact();

@@ -43,6 +43,10 @@ public final class SecurityConstants {
    * Service Token 中 permissions 的 Claims key
    */
   public static final String CLAIM_PERMISSIONS = "permissions";
+  /**
+   * User Token 中 authVersion 的 Claims key
+   */
+  public static final String CLAIM_AUTH_VERSION = "authVersion";
 
   private SecurityConstants() {
   }

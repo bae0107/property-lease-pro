@@ -52,12 +52,15 @@ security:
   mode: service
   service-name: ${spring.application.name}
   permit-paths:
-    - /auth/*
+    - /auth/**
     - /swagger-ui.html
     - /swagger-ui/**
     - /v3/api-docs/**
     - /v3/api-docs.yaml
   jwt:
+    user:
+      secret: dev-user-jwt-secret-for-development-only
+      expiration: 1800
     service:
       secret: dev-service-jwt-secret-for-development-only
       expiration: 300
@@ -87,3 +90,9 @@ ali:
 region:
   file:
     path: "classpath:source/area.xml"
+
+iam:
+  bootstrap:
+    users:
+      iam-admin-initial-password: ${IAM_BOOTSTRAP_USERS_IAM_ADMIN_INITIAL_PASSWORD:}
+      reset-iam-admin-password-on-sync: ${IAM_BOOTSTRAP_USERS_RESET_IAM_ADMIN_PASSWORD_ON_SYNC:false}

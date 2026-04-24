@@ -100,7 +100,10 @@ public class ReactiveUserJwtFilter implements WebFilter, Ordered {
     // 4. 解析 User JWT（用 fromCallable 包装同步 CPU 操作）
     ServerWebExchange finalExchange = exchange;
     return Mono.fromCallable(() -> jwtTokenParser.parseUserToken(bearerToken, userSecret))
-        .flatMap(payload -> chain.filter(buildForwardExchange(finalExchange, payload)))
+        .flatMap(payload -> {
+          validateUserTokenVersion(payload);
+          return chain.filter(buildForwardExchange(finalExchange, payload));
+        })
         .onErrorResume(InvalidTokenException.class,
             e -> write401(finalExchange, e.getErrorCode(), e.getMessage()))
         .onErrorResume(Exception.class,
@@ -113,6 +116,13 @@ public class ReactiveUserJwtFilter implements WebFilter, Ordered {
   private boolean isPermittedPath(String path) {
     return properties.getEffectivePermitPaths().stream()
         .anyMatch(pattern -> pathMatcher.match(pattern, path));
+  }
+
+  private void validateUserTokenVersion(UserTokenPayload payload) {
+    if (payload.authVersion() == null || payload.authVersion() < 0) {
+      throw new InvalidTokenException(InvalidTokenException.TOKEN_INVALID,
+          "User token authVersion claim is required");
+    }
   }
 
   /**
