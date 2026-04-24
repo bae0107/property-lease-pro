@@ -1,17 +1,14 @@
 package com.jugu.propertylease.main.iam.service;
 
-import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
-
 import com.jugu.propertylease.main.api.model.Role;
-import com.jugu.propertylease.main.api.model.RoleType;
 import com.jugu.propertylease.main.api.model.ScopeOption;
-import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.api.model.UserCreateFormMeta;
 import com.jugu.propertylease.main.iam.page.options.UserScopeOptionProvider;
+import com.jugu.propertylease.main.iam.repo.IamUserFormMetaRepository;
+import com.jugu.propertylease.main.iam.service.mapper.RoleDtoMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.jooq.DSLContext;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,28 +17,21 @@ import org.springframework.stereotype.Service;
 @Service
 public class UserFormMetaService {
 
-  private final DSLContext dsl;
+  private final IamUserFormMetaRepository userFormMetaRepository;
   private final UserScopeOptionProvider scopeOptionProvider;
+  private final RoleDtoMapper roleDtoMapper;
 
-  public UserFormMetaService(DSLContext dsl, UserScopeOptionProvider scopeOptionProvider) {
-    this.dsl = dsl;
+  public UserFormMetaService(IamUserFormMetaRepository userFormMetaRepository,
+      UserScopeOptionProvider scopeOptionProvider, RoleDtoMapper roleDtoMapper) {
+    this.userFormMetaRepository = userFormMetaRepository;
     this.scopeOptionProvider = scopeOptionProvider;
+    this.roleDtoMapper = roleDtoMapper;
   }
 
   public UserCreateFormMeta getCreateFormMeta() {
-    List<Role> roleOptions = dsl.selectFrom(IAM_ROLE)
-        .where(IAM_ROLE.ROLE_TYPE.eq("STAFF"))
-        .fetch(r -> new Role()
-            .id(r.getId())
-            .name(r.getName())
-            .code(r.getCode())
-            .roleType(RoleType.fromValue(r.getRoleType()))
-            .sourceType(SourceType.fromValue(r.getSourceType()))
-            .requiredDataScopeDimension(EnumValueMapper.nullableFromValue(r.getRequiredDataScopeDimension(),
-                com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
-            .description(r.getDescription())
-            .createdAt(r.getCreatedAt())
-            .updatedAt(r.getUpdatedAt()));
+    List<Role> roleOptions = userFormMetaRepository.findStaffRoles().stream()
+        .map(roleDtoMapper::toRole)
+        .toList();
 
     List<ScopeOption> areaOptions = scopeOptionProvider.listAreas().stream()
         .map(it -> new ScopeOption().value(it.id()).label(it.label()))
@@ -62,4 +52,3 @@ public class UserFormMetaService {
         .allowedStoreIdsByAreaId(mapping);
   }
 }
-
