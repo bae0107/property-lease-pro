@@ -1,15 +1,14 @@
 package com.jugu.propertylease.main.iam.repo;
 
 import com.jugu.propertylease.main.iam.repo.model.UserDeleteSnapshot;
+import com.jugu.propertylease.main.iam.repo.model.UserSoftDeleteCommand;
 import java.time.OffsetDateTime;
 
 public interface IamUserLifecycleRepository {
 
   UserDeleteSnapshot findActiveUserSnapshot(Long userId);
 
-  void softDeleteUser(Long userId, Long operatorUserId, String reason, String tombstoneUserName,
-      String tombstoneMobile, String tombstoneEmail, String oldUserName, String oldMobile, String oldEmail,
-      OffsetDateTime now);
+  void softDeleteUser(UserSoftDeleteCommand command);
 
   void markIdentityDeleted(Long userId, OffsetDateTime now);
 

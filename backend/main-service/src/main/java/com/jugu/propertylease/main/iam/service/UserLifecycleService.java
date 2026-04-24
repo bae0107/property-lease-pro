@@ -4,6 +4,7 @@ import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
 import com.jugu.propertylease.main.iam.repo.IamUserLifecycleRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserDeleteSnapshot;
+import com.jugu.propertylease.main.iam.repo.model.UserSoftDeleteCommand;
 import java.time.OffsetDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -63,8 +64,17 @@ public class UserLifecycleService {
     String tombstoneEmail = oldEmail == null ? null : truncate(tombstonePrefix + oldEmail, 200);
     OffsetDateTime now = OffsetDateTime.now();
 
-    userLifecycleRepository.softDeleteUser(userId, operatorUserId, reason, tombstoneUserName, tombstoneMobile,
-        tombstoneEmail, oldUserName, oldMobile, oldEmail, now);
+    userLifecycleRepository.softDeleteUser(new UserSoftDeleteCommand(
+        userId,
+        operatorUserId,
+        reason,
+        tombstoneUserName,
+        tombstoneMobile,
+        tombstoneEmail,
+        oldUserName,
+        oldMobile,
+        oldEmail,
+        now));
 
     userLifecycleRepository.markIdentityDeleted(userId, now);
 

@@ -3,6 +3,7 @@ package com.jugu.propertylease.main.iam.repo.jooq;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_REFRESH_TOKEN;
 
 import com.jugu.propertylease.main.iam.repo.IamRefreshTokenRepository;
+import com.jugu.propertylease.main.iam.repo.model.RefreshTokenEntity;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRefreshToken;
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -19,20 +20,18 @@ public class JooqIamRefreshTokenRepository implements IamRefreshTokenRepository 
   }
 
   @Override
-  public void insert(String tokenHash, Long userId, String usernameSnapshot, String userTypeSnapshot,
-      OffsetDateTime issuedAt, OffsetDateTime expiresAt, OffsetDateTime revokedAt,
-      String replacedByTokenHash, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
+  public void insert(RefreshTokenEntity entity) {
     dsl.insertInto(IAM_REFRESH_TOKEN)
-        .set(IAM_REFRESH_TOKEN.TOKEN_HASH, tokenHash)
-        .set(IAM_REFRESH_TOKEN.USER_ID, userId)
-        .set(IAM_REFRESH_TOKEN.USERNAME_SNAPSHOT, usernameSnapshot)
-        .set(IAM_REFRESH_TOKEN.USER_TYPE_SNAPSHOT, userTypeSnapshot)
-        .set(IAM_REFRESH_TOKEN.ISSUED_AT, issuedAt)
-        .set(IAM_REFRESH_TOKEN.EXPIRES_AT, expiresAt)
-        .set(IAM_REFRESH_TOKEN.REVOKED_AT, revokedAt)
-        .set(IAM_REFRESH_TOKEN.REPLACED_BY_TOKEN_HASH, replacedByTokenHash)
-        .set(IAM_REFRESH_TOKEN.CREATED_AT, createdAt)
-        .set(IAM_REFRESH_TOKEN.UPDATED_AT, updatedAt)
+        .set(IAM_REFRESH_TOKEN.TOKEN_HASH, entity.tokenHash())
+        .set(IAM_REFRESH_TOKEN.USER_ID, entity.userId())
+        .set(IAM_REFRESH_TOKEN.USERNAME_SNAPSHOT, entity.usernameSnapshot())
+        .set(IAM_REFRESH_TOKEN.USER_TYPE_SNAPSHOT, entity.userTypeSnapshot())
+        .set(IAM_REFRESH_TOKEN.ISSUED_AT, entity.issuedAt())
+        .set(IAM_REFRESH_TOKEN.EXPIRES_AT, entity.expiresAt())
+        .set(IAM_REFRESH_TOKEN.REVOKED_AT, entity.revokedAt())
+        .set(IAM_REFRESH_TOKEN.REPLACED_BY_TOKEN_HASH, entity.replacedByTokenHash())
+        .set(IAM_REFRESH_TOKEN.CREATED_AT, entity.createdAt())
+        .set(IAM_REFRESH_TOKEN.UPDATED_AT, entity.updatedAt())
         .execute();
   }
 

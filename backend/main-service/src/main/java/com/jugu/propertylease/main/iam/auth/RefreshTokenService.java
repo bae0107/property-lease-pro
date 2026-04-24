@@ -2,6 +2,7 @@ package com.jugu.propertylease.main.iam.auth;
 
 import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.iam.repo.IamRefreshTokenRepository;
+import com.jugu.propertylease.main.iam.repo.model.RefreshTokenEntity;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRefreshToken;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -87,7 +88,7 @@ public class RefreshTokenService {
   }
 
   private void insertToken(String hash, Long userId, String username, String userType, OffsetDateTime now) {
-    refreshTokenRepository.insert(
+    refreshTokenRepository.insert(new RefreshTokenEntity(
         hash,
         userId,
         username,
@@ -97,7 +98,7 @@ public class RefreshTokenService {
         null,
         null,
         now,
-        now);
+        now));
   }
 
   private String sha256(String content) {

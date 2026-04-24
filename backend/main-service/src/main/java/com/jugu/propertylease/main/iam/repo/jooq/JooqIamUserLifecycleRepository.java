@@ -7,9 +7,10 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
 import com.jugu.propertylease.main.iam.repo.IamUserLifecycleRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserDeleteSnapshot;
+import com.jugu.propertylease.main.iam.repo.model.UserSoftDeleteCommand;
+import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
 import java.time.OffsetDateTime;
 import org.jooq.DSLContext;
-import org.jooq.Record5;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -23,35 +24,32 @@ public class JooqIamUserLifecycleRepository implements IamUserLifecycleRepositor
 
   @Override
   public UserDeleteSnapshot findActiveUserSnapshot(Long userId) {
-    Record5<String, String, String, String, String> row = dsl.select(IAM_USER.USER_NAME, IAM_USER.MOBILE,
-            IAM_USER.EMAIL, IAM_USER.SOURCE_TYPE, IAM_USER.USER_TYPE)
-        .from(IAM_USER)
+    IamUser user = dsl.selectFrom(IAM_USER)
         .where(IAM_USER.ID.eq(userId))
         .and(IAM_USER.DELETED_AT.isNull())
-        .fetchOne();
-    if (row == null) {
+        .fetchOneInto(IamUser.class);
+    if (user == null) {
       return null;
     }
-    return new UserDeleteSnapshot(row.value1(), row.value2(), row.value3(), row.value4(), row.value5());
+    return new UserDeleteSnapshot(user.getUserName(), user.getMobile(), user.getEmail(),
+        user.getSourceType(), user.getUserType());
   }
 
   @Override
-  public void softDeleteUser(Long userId, Long operatorUserId, String reason, String tombstoneUserName,
-      String tombstoneMobile, String tombstoneEmail, String oldUserName, String oldMobile, String oldEmail,
-      OffsetDateTime now) {
+  public void softDeleteUser(UserSoftDeleteCommand command) {
     dsl.update(IAM_USER)
         .set(IAM_USER.STATUS, "INACTIVE")
-        .set(IAM_USER.DELETED_AT, now)
-        .set(IAM_USER.DELETED_BY, operatorUserId)
-        .set(IAM_USER.DELETE_REASON, reason)
-        .set(IAM_USER.DELETED_USER_NAME, oldUserName)
-        .set(IAM_USER.DELETED_MOBILE, oldMobile)
-        .set(IAM_USER.DELETED_EMAIL, oldEmail)
-        .set(IAM_USER.USER_NAME, tombstoneUserName)
-        .set(IAM_USER.MOBILE, tombstoneMobile)
-        .set(IAM_USER.EMAIL, tombstoneEmail)
-        .set(IAM_USER.UPDATED_AT, now)
-        .where(IAM_USER.ID.eq(userId))
+        .set(IAM_USER.DELETED_AT, command.now())
+        .set(IAM_USER.DELETED_BY, command.operatorUserId())
+        .set(IAM_USER.DELETE_REASON, command.reason())
+        .set(IAM_USER.DELETED_USER_NAME, command.oldUserName())
+        .set(IAM_USER.DELETED_MOBILE, command.oldMobile())
+        .set(IAM_USER.DELETED_EMAIL, command.oldEmail())
+        .set(IAM_USER.USER_NAME, command.tombstoneUserName())
+        .set(IAM_USER.MOBILE, command.tombstoneMobile())
+        .set(IAM_USER.EMAIL, command.tombstoneEmail())
+        .set(IAM_USER.UPDATED_AT, command.now())
+        .where(IAM_USER.ID.eq(command.userId()))
         .and(IAM_USER.DELETED_AT.isNull())
         .execute();
   }

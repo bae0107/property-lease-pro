@@ -10,13 +10,13 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 import com.jugu.propertylease.main.iam.repo.IamUserMutationRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
+import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.jooq.DSLContext;
-import org.jooq.Record2;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -30,15 +30,14 @@ public class JooqIamUserMutationRepository implements IamUserMutationRepository 
 
   @Override
   public Optional<UserBaseInfo> findActiveUserBase(Long userId) {
-    Record2<String, String> row = dsl.select(IAM_USER.USER_TYPE, IAM_USER.SOURCE_TYPE)
-        .from(IAM_USER)
+    IamUser user = dsl.selectFrom(IAM_USER)
         .where(IAM_USER.ID.eq(userId))
         .and(IAM_USER.DELETED_AT.isNull())
-        .fetchOne();
-    if (row == null) {
+        .fetchOneInto(IamUser.class);
+    if (user == null) {
       return Optional.empty();
     }
-    return Optional.of(new UserBaseInfo(row.value1(), row.value2()));
+    return Optional.of(new UserBaseInfo(user.getUserType(), user.getSourceType()));
   }
 
   @Override
