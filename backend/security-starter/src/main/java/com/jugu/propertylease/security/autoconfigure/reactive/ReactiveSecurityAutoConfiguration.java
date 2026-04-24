@@ -2,6 +2,7 @@ package com.jugu.propertylease.security.autoconfigure.reactive;
 
 import com.jugu.propertylease.security.autoconfigure.SecurityStarterAutoConfiguration;
 import com.jugu.propertylease.security.filter.reactive.ReactiveUserJwtFilter;
+import com.jugu.propertylease.security.filter.reactive.UserTokenVersionChecker;
 import com.jugu.propertylease.security.properties.SecurityProperties;
 import com.jugu.propertylease.security.token.JwtTokenParser;
 import com.jugu.propertylease.security.token.ServiceTokenGenerator;
@@ -30,8 +31,10 @@ public class ReactiveSecurityAutoConfiguration {
   @Order(-100)
   public ReactiveUserJwtFilter reactiveUserJwtFilter(JwtTokenParser jwtTokenParser,
       ServiceTokenGenerator serviceTokenGenerator,
-      SecurityProperties properties) {
-    return new ReactiveUserJwtFilter(jwtTokenParser, serviceTokenGenerator, properties);
+      SecurityProperties properties,
+      org.springframework.beans.factory.ObjectProvider<UserTokenVersionChecker> versionCheckerProvider) {
+    UserTokenVersionChecker checker = versionCheckerProvider.getIfAvailable(() -> (userId, authVersion) -> true);
+    return new ReactiveUserJwtFilter(jwtTokenParser, serviceTokenGenerator, properties, checker);
   }
 
   @Bean

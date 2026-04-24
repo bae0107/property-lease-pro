@@ -35,8 +35,9 @@ public class JwtTokenParser {
     String username = claims.getSubject();
     Long userId = extractUserId(claims);
     List<String> permissions = extractPermissions(claims);
+    Integer authVersion = extractAuthVersion(claims);
     long exp = claims.getExpiration().getTime() / 1000;
-    return new UserTokenPayload(username, userId, permissions, exp);
+    return new UserTokenPayload(username, userId, permissions, authVersion, exp);
   }
 
   /**
@@ -94,6 +95,14 @@ public class JwtTokenParser {
       return null;
     }
     return ((Number) raw).longValue();
+  }
+
+  private Integer extractAuthVersion(Claims claims) {
+    Object raw = claims.get(SecurityConstants.CLAIM_AUTH_VERSION);
+    if (raw == null) {
+      return null;
+    }
+    return ((Number) raw).intValue();
   }
 
   /**

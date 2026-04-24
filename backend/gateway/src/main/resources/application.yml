@@ -39,3 +39,8 @@ gateway:
     capacity: 100                # 令牌桶容量（最大突发请求数）
     refill-rate: 20              # 每秒补充令牌数（稳态 20 req/s/IP）
     key-resolver: ip
+  auth-version:
+    enabled: true
+    cache-ttl-seconds: 10
+    request-timeout-millis: 500
+    fail-open: false
