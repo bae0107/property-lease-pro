@@ -6,6 +6,7 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
 import com.jugu.propertylease.main.iam.repo.IamUserLifecycleRepository;
+import com.jugu.propertylease.main.iam.repo.model.UserDeleteSnapshot;
 import java.time.OffsetDateTime;
 import org.jooq.DSLContext;
 import org.jooq.Record5;

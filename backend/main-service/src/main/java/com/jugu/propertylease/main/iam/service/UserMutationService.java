@@ -13,6 +13,7 @@ import com.jugu.propertylease.main.api.model.UserDataScope;
 import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
 import com.jugu.propertylease.main.iam.repo.IamUserMutationRepository;
+import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -47,14 +48,14 @@ public class UserMutationService {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_PATCH_REQUEST_REQUIRED",
           "请求体不能为空");
     }
-    IamUserMutationRepository.UserBaseInfo userBase = userMutationRepository.findActiveUserBase(userId)
+    UserBaseInfo userBase = userMutationRepository.findActiveUserBase(userId)
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "IAM_USER_NOT_FOUND", "用户不存在"));
 
-    if (!"STAFF".equals(userBase.getUserType()) && !"CONTRACTOR".equals(userBase.getUserType())) {
+    if (!"STAFF".equals(userBase.userType()) && !"CONTRACTOR".equals(userBase.userType())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_PATCH_TYPE_UNSUPPORTED",
           "当前接口仅支持 STAFF / CONTRACTOR 用户");
     }
-    if ("BUILTIN".equals(userBase.getSourceType())) {
+    if ("BUILTIN".equals(userBase.sourceType())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_PATCH_BUILTIN_FORBIDDEN",
           "BUILTIN 用户不允许修改");
     }
@@ -95,7 +96,7 @@ public class UserMutationService {
             "所选角色包含无效 ID");
       }
       boolean hasMismatchRole = roleRows.stream()
-          .anyMatch(role -> !userBase.getUserType().equals(role.getRoleType()));
+          .anyMatch(role -> !userBase.userType().equals(role.getRoleType()));
       if (hasMismatchRole) {
         throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_ROLE_TYPE_MISMATCH",
             "所选角色必须全部与用户类型一致");

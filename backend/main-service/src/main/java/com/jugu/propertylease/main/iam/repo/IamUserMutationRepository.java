@@ -1,5 +1,6 @@
 package com.jugu.propertylease.main.iam.repo;
 
+import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -40,23 +41,4 @@ public interface IamUserMutationRepository {
       OffsetDateTime now);
 
   void insertPasswordIdentity(Long userId, String username, OffsetDateTime now);
-
-  class UserBaseInfo {
-
-    private final String userType;
-    private final String sourceType;
-
-    public UserBaseInfo(String userType, String sourceType) {
-      this.userType = userType;
-      this.sourceType = sourceType;
-    }
-
-    public String getUserType() {
-      return userType;
-    }
-
-    public String getSourceType() {
-      return sourceType;
-    }
-  }
 }

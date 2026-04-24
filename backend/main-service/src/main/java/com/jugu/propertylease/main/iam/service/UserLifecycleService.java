@@ -3,6 +3,7 @@ package com.jugu.propertylease.main.iam.service;
 import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
 import com.jugu.propertylease.main.iam.repo.IamUserLifecycleRepository;
+import com.jugu.propertylease.main.iam.repo.model.UserDeleteSnapshot;
 import java.time.OffsetDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -35,16 +36,16 @@ public class UserLifecycleService {
           "不允许删除当前登录用户");
     }
 
-    IamUserLifecycleRepository.UserDeleteSnapshot snapshot = userLifecycleRepository.findActiveUserSnapshot(userId);
+    UserDeleteSnapshot snapshot = userLifecycleRepository.findActiveUserSnapshot(userId);
     if (snapshot == null) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_USER_NOT_FOUND", "用户不存在");
     }
 
-    String oldUserName = snapshot.getUserName();
-    String oldMobile = snapshot.getMobile();
-    String oldEmail = snapshot.getEmail();
-    String sourceType = snapshot.getSourceType();
-    String userType = snapshot.getUserType();
+    String oldUserName = snapshot.userName();
+    String oldMobile = snapshot.mobile();
+    String oldEmail = snapshot.email();
+    String sourceType = snapshot.sourceType();
+    String userType = snapshot.userType();
 
     if ("BUILTIN".equals(sourceType) || "SYSTEM".equals(userType)) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_DELETE_FORBIDDEN",

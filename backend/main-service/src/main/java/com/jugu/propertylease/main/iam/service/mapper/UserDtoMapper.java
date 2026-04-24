@@ -2,14 +2,12 @@ package com.jugu.propertylease.main.iam.service.mapper;
 
 import com.jugu.propertylease.main.api.model.DataScopeItem;
 import com.jugu.propertylease.main.api.model.Role;
-import com.jugu.propertylease.main.api.model.RoleType;
-import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.api.model.User;
 import com.jugu.propertylease.main.api.model.UserDataScope;
 import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.api.model.UserStatus;
 import com.jugu.propertylease.main.api.model.UserType;
-import com.jugu.propertylease.main.iam.service.EnumValueMapper;
+import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamUserDataScope;
@@ -22,8 +20,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserDtoMapper {
 
+  private final RoleDtoMapper roleDtoMapper;
+
+  public UserDtoMapper(RoleDtoMapper roleDtoMapper) {
+    this.roleDtoMapper = roleDtoMapper;
+  }
+
   public UserDetail toUserDetail(IamUser user, List<IamRole> roles, List<IamUserDataScope> scopeRows) {
-    List<Role> roleDtos = roles.stream().map(this::toRole).toList();
+    List<Role> roleDtos = roles.stream().map(roleDtoMapper::toRole).toList();
     UserDataScope userDataScope = new UserDataScope().scopes(toDataScopeItems(scopeRows));
 
     User base = new User()
@@ -59,20 +63,6 @@ public class UserDtoMapper {
         .roleNames(base.getRoleNames())
         .roles(roleDtos)
         .dataScope(userDataScope);
-  }
-
-  private Role toRole(IamRole role) {
-    return new Role()
-        .id(role.getId())
-        .name(role.getName())
-        .code(role.getCode())
-        .roleType(RoleType.fromValue(role.getRoleType()))
-        .sourceType(SourceType.fromValue(role.getSourceType()))
-        .requiredDataScopeDimension(EnumValueMapper.nullableFromValue(role.getRequiredDataScopeDimension(),
-            com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
-        .description(role.getDescription())
-        .createdAt(role.getCreatedAt())
-        .updatedAt(role.getUpdatedAt());
   }
 
   private List<DataScopeItem> toDataScopeItems(List<IamUserDataScope> scopeRows) {

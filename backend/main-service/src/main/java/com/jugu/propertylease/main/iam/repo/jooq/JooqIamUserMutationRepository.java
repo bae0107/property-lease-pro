@@ -8,6 +8,7 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
 import com.jugu.propertylease.main.iam.repo.IamUserMutationRepository;
+import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;

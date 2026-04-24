@@ -6,11 +6,10 @@ import com.jugu.propertylease.main.api.model.CreateRoleRequest;
 import com.jugu.propertylease.main.api.model.Permission;
 import com.jugu.propertylease.main.api.model.Role;
 import com.jugu.propertylease.main.api.model.RoleDetail;
-import com.jugu.propertylease.main.api.model.RoleType;
-import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.api.model.UpdateRolePermissionsRequest;
 import com.jugu.propertylease.main.api.model.UpdateRoleRequest;
 import com.jugu.propertylease.main.iam.repo.IamRoleManagementRepository;
+import com.jugu.propertylease.main.iam.service.mapper.RoleDtoMapper;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -25,9 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoleManagementService {
 
   private final IamRoleManagementRepository roleRepository;
+  private final RoleDtoMapper roleDtoMapper;
 
-  public RoleManagementService(IamRoleManagementRepository roleRepository) {
+  public RoleManagementService(IamRoleManagementRepository roleRepository, RoleDtoMapper roleDtoMapper) {
     this.roleRepository = roleRepository;
+    this.roleDtoMapper = roleDtoMapper;
   }
 
   @Transactional
@@ -53,13 +54,7 @@ public class RoleManagementService {
   public RoleDetail getRoleDetail(Long roleId) {
     Role role = getRole(roleId);
     List<Permission> permissions = roleRepository.findActivePermissionsByRoleId(roleId).stream()
-        .map(p -> new Permission()
-            .id(p.getId())
-            .code(p.getCode())
-            .name(p.getName())
-            .resource(p.getResource())
-            .action(p.getAction())
-            .description(p.getDescription()))
+        .map(roleDtoMapper::toPermission)
         .toList();
 
     return new RoleDetail()
@@ -163,16 +158,6 @@ public class RoleManagementService {
     if (row == null) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在");
     }
-    return new Role()
-        .id(row.getId())
-        .name(row.getName())
-        .code(row.getCode())
-        .roleType(RoleType.fromValue(row.getRoleType()))
-        .sourceType(SourceType.fromValue(row.getSourceType()))
-        .requiredDataScopeDimension(EnumValueMapper.nullableFromValue(row.getRequiredDataScopeDimension(),
-            com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
-        .description(row.getDescription())
-        .createdAt(row.getCreatedAt())
-        .updatedAt(row.getUpdatedAt());
+    return roleDtoMapper.toRole(row);
   }
 }
