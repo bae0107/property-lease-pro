@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <changeSet id="003-iam-refresh-token" author="codex">
+    <createTable tableName="iam_refresh_token" remarks="Refresh Token 持久化表（仅存 token hash）">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="token_hash" type="VARCHAR(64)" remarks="refresh token 的 SHA-256 hash">
+        <constraints nullable="false"/>
+      </column>
+      <column name="user_id" type="BIGINT" remarks="关联 iam_user.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="username_snapshot" type="VARCHAR(100)" remarks="签发时用户名快照">
+        <constraints nullable="false"/>
+      </column>
+      <column name="user_type_snapshot" type="VARCHAR(20)" remarks="签发时用户类型快照">
+        <constraints nullable="false"/>
+      </column>
+      <column name="issued_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="expires_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="revoked_at" type="DATETIME(3)" remarks="撤销时间，NULL=有效"/>
+      <column name="replaced_by_token_hash" type="VARCHAR(64)" remarks="旋转后新 token hash"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="iam_refresh_token" columnNames="token_hash"
+      constraintName="uk_iam_refresh_token_hash"/>
+
+    <createIndex tableName="iam_refresh_token" indexName="idx_iam_refresh_token_user_id">
+      <column name="user_id"/>
+    </createIndex>
+
+    <createIndex tableName="iam_refresh_token" indexName="idx_iam_refresh_token_expires_at">
+      <column name="expires_at"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>
