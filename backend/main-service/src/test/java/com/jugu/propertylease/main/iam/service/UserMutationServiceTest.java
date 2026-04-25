@@ -42,7 +42,7 @@ class UserMutationServiceTest {
 
     assertThatThrownBy(() -> userMutationService.patchUser(userId, new PatchUserRequest()))
         .isInstanceOf(BusinessException.class)
-        .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
+        .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
             .isEqualTo("IAM_USER_PATCH_BUILTIN_FORBIDDEN"));
 
     verifyNoInteractions(authVersionService, userReadService);

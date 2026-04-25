@@ -53,3 +53,5 @@ logging:
       jooq: DEBUG
 security:
   mode: mock
+server:
+  forward-headers-strategy: framework
