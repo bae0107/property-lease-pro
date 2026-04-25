@@ -1,18 +1,14 @@
 package com.jugu.propertylease.main.iam.auth;
 
-import static com.jugu.propertylease.main.jooq.Tables.IAM_PERMISSION;
-import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE_PERMISSION;
-import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
-import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
-
 import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.api.model.LogoutRequest;
 import com.jugu.propertylease.main.api.model.RefreshResult;
 import com.jugu.propertylease.main.api.model.RefreshTokenRequest;
+import com.jugu.propertylease.main.api.model.UserStatus;
+import com.jugu.propertylease.main.iam.repo.IamAuthQueryRepository;
+import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
 import com.jugu.propertylease.security.properties.SecurityProperties;
 import java.util.List;
-import org.jooq.DSLContext;
-import org.jooq.Record;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,16 +19,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthSessionService {
 
-  private final DSLContext dsl;
+  private final IamAuthQueryRepository authQueryRepository;
   private final UserJwtIssuer userJwtIssuer;
   private final RefreshTokenService refreshTokenService;
   private final SecurityProperties securityProperties;
 
-  public AuthSessionService(DSLContext dsl,
+  public AuthSessionService(IamAuthQueryRepository authQueryRepository,
       UserJwtIssuer userJwtIssuer,
       RefreshTokenService refreshTokenService,
       SecurityProperties securityProperties) {
-    this.dsl = dsl;
+    this.authQueryRepository = authQueryRepository;
     this.userJwtIssuer = userJwtIssuer;
     this.refreshTokenService = refreshTokenService;
     this.securityProperties = securityProperties;
@@ -47,34 +43,22 @@ public class AuthSessionService {
 
     RefreshTokenService.TokenPayload payload = refreshTokenService.validate(request.getRefreshToken());
 
-    Record user = dsl.selectFrom(IAM_USER)
-        .where(IAM_USER.ID.eq(payload.userId()))
-        .and(IAM_USER.DELETED_AT.isNull())
-        .fetchOne();
-    if (user == null) {
-      throw new BusinessException(HttpStatus.UNAUTHORIZED, "IAM_AUTH_REFRESH_TOKEN_INVALID",
-          "refresh token 无效");
-    }
+    IamUser user = authQueryRepository.findActiveUserById(payload.userId())
+        .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "IAM_AUTH_REFRESH_TOKEN_INVALID",
+            "refresh token 无效"));
 
-    String status = user.get(IAM_USER.STATUS);
-    if (!"ACTIVE".equals(status)) {
+    if (!UserStatus.ACTIVE.getValue().equals(user.getStatus())) {
       throw new BusinessException(HttpStatus.FORBIDDEN, "IAM_USER_ACCOUNT_DISABLED", "账号已禁用");
     }
 
-    List<String> permissions = dsl.selectDistinct(IAM_PERMISSION.CODE)
-        .from(IAM_USER_ROLE)
-        .join(IAM_ROLE_PERMISSION).on(IAM_USER_ROLE.ROLE_ID.eq(IAM_ROLE_PERMISSION.ROLE_ID))
-        .join(IAM_PERMISSION).on(IAM_ROLE_PERMISSION.PERMISSION_ID.eq(IAM_PERMISSION.ID))
-        .where(IAM_USER_ROLE.USER_ID.eq(payload.userId()))
-        .and(IAM_PERMISSION.DELETED_AT.isNull())
-        .fetch(IAM_PERMISSION.CODE);
+    List<String> permissions = authQueryRepository.findPermissionCodesByUserId(payload.userId());
 
     int expirationSeconds = securityProperties.getJwt().getUser().getExpiration();
     String accessToken = userJwtIssuer.issue(
         payload.userId(),
         payload.username(),
         permissions,
-        user.get(IAM_USER.AUTH_VERSION),
+        user.getAuthVersion(),
         securityProperties.getJwt().getUser().getSecret(),
         expirationSeconds);
 
