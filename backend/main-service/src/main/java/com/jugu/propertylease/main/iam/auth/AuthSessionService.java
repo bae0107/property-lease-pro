@@ -4,6 +4,7 @@ import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.api.model.LogoutRequest;
 import com.jugu.propertylease.main.api.model.RefreshResult;
 import com.jugu.propertylease.main.api.model.RefreshTokenRequest;
+import com.jugu.propertylease.main.api.model.UserStatus;
 import com.jugu.propertylease.main.iam.repo.IamAuthQueryRepository;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
 import com.jugu.propertylease.security.properties.SecurityProperties;
@@ -46,7 +47,7 @@ public class AuthSessionService {
         .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "IAM_AUTH_REFRESH_TOKEN_INVALID",
             "refresh token 无效"));
 
-    if (!"ACTIVE".equals(user.getStatus())) {
+    if (!UserStatus.ACTIVE.getValue().equals(user.getStatus())) {
       throw new BusinessException(HttpStatus.FORBIDDEN, "IAM_USER_ACCOUNT_DISABLED", "账号已禁用");
     }
 

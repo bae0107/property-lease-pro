@@ -9,6 +9,8 @@ import com.jugu.propertylease.main.api.model.ResetUserPasswordRequest;
 import com.jugu.propertylease.main.api.model.UpdateUserDataScopeRequest;
 import com.jugu.propertylease.main.api.model.UpdateUserRolesRequest;
 import com.jugu.propertylease.main.api.model.UpdateUserStatusRequest;
+import com.jugu.propertylease.main.api.model.SourceType;
+import com.jugu.propertylease.main.api.model.UserType;
 import com.jugu.propertylease.main.api.model.UserDataScope;
 import com.jugu.propertylease.main.api.model.UserDetail;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
@@ -51,11 +53,12 @@ public class UserMutationService {
     UserBaseInfo userBase = userMutationRepository.findActiveUserBase(userId)
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "IAM_USER_NOT_FOUND", "用户不存在"));
 
-    if (!"STAFF".equals(userBase.userType()) && !"CONTRACTOR".equals(userBase.userType())) {
+    if (!UserType.STAFF.getValue().equals(userBase.userType())
+        && !UserType.CONTRACTOR.getValue().equals(userBase.userType())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_PATCH_TYPE_UNSUPPORTED",
           "当前接口仅支持 STAFF / CONTRACTOR 用户");
     }
-    if ("BUILTIN".equals(userBase.sourceType())) {
+    if (SourceType.BUILTIN.getValue().equals(userBase.sourceType())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_PATCH_BUILTIN_FORBIDDEN",
           "BUILTIN 用户不允许修改");
     }
@@ -144,7 +147,7 @@ public class UserMutationService {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_CREATE_REQUEST_REQUIRED", "请求体不能为空");
     }
     String userType = request.getUserType() == null ? null : request.getUserType().getValue();
-    if (!"STAFF".equals(userType) && !"CONTRACTOR".equals(userType)) {
+    if (!UserType.STAFF.getValue().equals(userType) && !UserType.CONTRACTOR.getValue().equals(userType)) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_CREATE_TYPE_UNSUPPORTED",
           "仅支持创建 STAFF / CONTRACTOR 用户");
     }

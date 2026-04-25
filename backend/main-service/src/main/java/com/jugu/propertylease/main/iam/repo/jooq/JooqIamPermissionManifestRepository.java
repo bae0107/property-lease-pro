@@ -10,6 +10,8 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
+import com.jugu.propertylease.main.api.model.SourceType;
+import com.jugu.propertylease.main.iam.auth.IdentityProvider;
 import com.jugu.propertylease.main.iam.repo.IamPermissionManifestRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserDataScopeSeed;
 import java.time.OffsetDateTime;
@@ -117,7 +119,7 @@ public class JooqIamPermissionManifestRepository implements IamPermissionManifes
         .set(IAM_ROLE.NAME, name)
         .set(IAM_ROLE.CODE, code)
         .set(IAM_ROLE.ROLE_TYPE, roleType)
-        .set(IAM_ROLE.SOURCE_TYPE, "BUILTIN")
+        .set(IAM_ROLE.SOURCE_TYPE, SourceType.BUILTIN.getValue())
         .set(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION, requiredDataScopeDimension)
         .set(IAM_ROLE.DESCRIPTION, description)
         .set(IAM_ROLE.CREATED_AT, now)
@@ -132,7 +134,7 @@ public class JooqIamPermissionManifestRepository implements IamPermissionManifes
     dsl.update(IAM_ROLE)
         .set(IAM_ROLE.NAME, name)
         .set(IAM_ROLE.ROLE_TYPE, roleType)
-        .set(IAM_ROLE.SOURCE_TYPE, "BUILTIN")
+        .set(IAM_ROLE.SOURCE_TYPE, SourceType.BUILTIN.getValue())
         .set(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION, requiredDataScopeDimension)
         .set(IAM_ROLE.DESCRIPTION, description)
         .set(IAM_ROLE.UPDATED_AT, now)
@@ -173,7 +175,7 @@ public class JooqIamPermissionManifestRepository implements IamPermissionManifes
       String email, String source, OffsetDateTime now) {
     return dsl.insertInto(IAM_USER)
         .set(IAM_USER.USER_TYPE, userType)
-        .set(IAM_USER.SOURCE_TYPE, "BUILTIN")
+        .set(IAM_USER.SOURCE_TYPE, SourceType.BUILTIN.getValue())
         .set(IAM_USER.STATUS, status)
         .set(IAM_USER.AUTH_VERSION, 0)
         .set(IAM_USER.USER_NAME, userName)
@@ -249,7 +251,7 @@ public class JooqIamPermissionManifestRepository implements IamPermissionManifes
   @Override
   public boolean activePasswordIdentityExists(String userName) {
     return dsl.fetchExists(dsl.selectOne().from(IAM_IDENTITY)
-        .where(IAM_IDENTITY.PROVIDER.eq("password"))
+        .where(IAM_IDENTITY.PROVIDER.eq(IdentityProvider.PASSWORD.value()))
         .and(IAM_IDENTITY.PROVIDER_USER_ID.eq(userName))
         .and(IAM_IDENTITY.DELETED_AT.isNull()));
   }
@@ -258,7 +260,7 @@ public class JooqIamPermissionManifestRepository implements IamPermissionManifes
   public void insertPasswordIdentity(Long userId, String userName, OffsetDateTime now) {
     dsl.insertInto(IAM_IDENTITY)
         .set(IAM_IDENTITY.USER_ID, userId)
-        .set(IAM_IDENTITY.PROVIDER, "password")
+        .set(IAM_IDENTITY.PROVIDER, IdentityProvider.PASSWORD.value())
         .set(IAM_IDENTITY.PROVIDER_USER_ID, userName)
         .set(IAM_IDENTITY.UNION_ID, (String) null)
         .set(IAM_IDENTITY.APP_ID, (String) null)

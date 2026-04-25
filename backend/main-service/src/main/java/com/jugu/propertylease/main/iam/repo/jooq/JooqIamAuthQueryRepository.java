@@ -7,6 +7,7 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE_PERMISSION;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
+import com.jugu.propertylease.main.iam.auth.IdentityProvider;
 import com.jugu.propertylease.main.iam.repo.IamAuthQueryRepository;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamCredential;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
@@ -28,7 +29,7 @@ public class JooqIamAuthQueryRepository implements IamAuthQueryRepository {
   public Optional<Long> findActivePasswordIdentityUserId(String username) {
     return Optional.ofNullable(dsl.select(IAM_IDENTITY.USER_ID)
         .from(IAM_IDENTITY)
-        .where(IAM_IDENTITY.PROVIDER.eq("password"))
+        .where(IAM_IDENTITY.PROVIDER.eq(IdentityProvider.PASSWORD.value()))
         .and(IAM_IDENTITY.PROVIDER_USER_ID.eq(username))
         .and(IAM_IDENTITY.DELETED_AT.isNull())
         .fetchOne(IAM_IDENTITY.USER_ID));

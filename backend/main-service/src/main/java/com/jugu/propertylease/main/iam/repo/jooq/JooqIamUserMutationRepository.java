@@ -7,6 +7,9 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
+import com.jugu.propertylease.main.api.model.SourceType;
+import com.jugu.propertylease.main.api.model.UserStatus;
+import com.jugu.propertylease.main.iam.auth.IdentityProvider;
 import com.jugu.propertylease.main.iam.repo.IamUserMutationRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
 import com.jugu.propertylease.main.iam.repo.model.RoleTypeSnapshot;
@@ -165,8 +168,8 @@ public class JooqIamUserMutationRepository implements IamUserMutationRepository 
       OffsetDateTime now) {
     return dsl.insertInto(IAM_USER)
         .set(IAM_USER.USER_TYPE, userType)
-        .set(IAM_USER.SOURCE_TYPE, "CUSTOM")
-        .set(IAM_USER.STATUS, "ACTIVE")
+        .set(IAM_USER.SOURCE_TYPE, SourceType.CUSTOM.getValue())
+        .set(IAM_USER.STATUS, UserStatus.ACTIVE.getValue())
         .set(IAM_USER.AUTH_VERSION, 0)
         .set(IAM_USER.USER_NAME, userName)
         .set(IAM_USER.REAL_NAME, realName)
@@ -184,7 +187,7 @@ public class JooqIamUserMutationRepository implements IamUserMutationRepository 
   public void insertPasswordIdentity(Long userId, String username, OffsetDateTime now) {
     dsl.insertInto(IAM_IDENTITY)
         .set(IAM_IDENTITY.USER_ID, userId)
-        .set(IAM_IDENTITY.PROVIDER, "password")
+        .set(IAM_IDENTITY.PROVIDER, IdentityProvider.PASSWORD.value())
         .set(IAM_IDENTITY.PROVIDER_USER_ID, username)
         .set(IAM_IDENTITY.UNION_ID, (String) null)
         .set(IAM_IDENTITY.APP_ID, (String) null)

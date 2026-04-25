@@ -5,6 +5,7 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
+import com.jugu.propertylease.main.api.model.UserStatus;
 import com.jugu.propertylease.main.iam.repo.IamUserLifecycleRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserDeleteSnapshot;
 import com.jugu.propertylease.main.iam.repo.model.UserSoftDeleteCommand;
@@ -38,7 +39,7 @@ public class JooqIamUserLifecycleRepository implements IamUserLifecycleRepositor
   @Override
   public void softDeleteUser(UserSoftDeleteCommand command) {
     dsl.update(IAM_USER)
-        .set(IAM_USER.STATUS, "INACTIVE")
+        .set(IAM_USER.STATUS, UserStatus.INACTIVE.getValue())
         .set(IAM_USER.DELETED_AT, command.now())
         .set(IAM_USER.DELETED_BY, command.operatorUserId())
         .set(IAM_USER.DELETE_REASON, command.reason())
@@ -79,7 +80,7 @@ public class JooqIamUserLifecycleRepository implements IamUserLifecycleRepositor
         .join(IAM_USER_ROLE).on(IAM_USER.ID.eq(IAM_USER_ROLE.USER_ID))
         .join(IAM_ROLE).on(IAM_USER_ROLE.ROLE_ID.eq(IAM_ROLE.ID))
         .where(IAM_USER.DELETED_AT.isNull())
-        .and(IAM_USER.STATUS.eq("ACTIVE"))
+        .and(IAM_USER.STATUS.eq(UserStatus.ACTIVE.getValue()))
         .and(IAM_ROLE.CODE.eq(roleCode)));
   }
 }

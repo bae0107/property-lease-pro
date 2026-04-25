@@ -3,6 +3,7 @@ package com.jugu.propertylease.main.iam.auth;
 import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.api.model.LoginResult;
 import com.jugu.propertylease.main.api.model.PasswordLoginRequest;
+import com.jugu.propertylease.main.api.model.UserStatus;
 import com.jugu.propertylease.main.api.model.UserType;
 import com.jugu.propertylease.main.iam.repo.IamAuthQueryRepository;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamUser;
@@ -48,12 +49,12 @@ public class PasswordLoginService {
         .orElseThrow(this::invalidCredentials);
 
     String userType = user.getUserType();
-    if (!"STAFF".equals(userType) && !"CONTRACTOR".equals(userType)) {
+    if (!UserType.STAFF.getValue().equals(userType) && !UserType.CONTRACTOR.getValue().equals(userType)) {
       throw new BusinessException(HttpStatus.FORBIDDEN, "IAM_AUTH_LOGIN_METHOD_NOT_ALLOWED",
           "当前账号不支持用户名密码登录");
     }
 
-    if (!"ACTIVE".equals(user.getStatus())) {
+    if (!UserStatus.ACTIVE.getValue().equals(user.getStatus())) {
       throw new BusinessException(HttpStatus.FORBIDDEN, "IAM_USER_ACCOUNT_DISABLED", "账号已禁用");
     }
 

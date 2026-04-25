@@ -6,6 +6,7 @@ import com.jugu.propertylease.main.api.model.CreateRoleRequest;
 import com.jugu.propertylease.main.api.model.Permission;
 import com.jugu.propertylease.main.api.model.Role;
 import com.jugu.propertylease.main.api.model.RoleDetail;
+import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.api.model.UpdateRolePermissionsRequest;
 import com.jugu.propertylease.main.api.model.UpdateRoleRequest;
 import com.jugu.propertylease.main.iam.repo.IamRoleManagementRepository;
@@ -80,7 +81,7 @@ public class RoleManagementService {
     if (row == null) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在");
     }
-    if ("BUILTIN".equals(row.getSourceType())) {
+    if (SourceType.BUILTIN.getValue().equals(row.getSourceType())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_BUILTIN_MODIFY_FORBIDDEN",
           "BUILTIN 角色不可修改");
     }
@@ -104,7 +105,7 @@ public class RoleManagementService {
     if (row == null) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在");
     }
-    if ("BUILTIN".equals(row.getSourceType())) {
+    if (SourceType.BUILTIN.getValue().equals(row.getSourceType())) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_BUILTIN_PERMISSION_UPDATE_FORBIDDEN",
           "BUILTIN 角色权限不可修改");
     }
@@ -139,7 +140,8 @@ public class RoleManagementService {
       throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "存在角色不存在");
     }
 
-    boolean containsBuiltin = roles.stream().anyMatch(role -> "BUILTIN".equals(role.getSourceType()));
+    boolean containsBuiltin =
+        roles.stream().anyMatch(role -> SourceType.BUILTIN.getValue().equals(role.getSourceType()));
     if (containsBuiltin) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_DELETE_BUILTIN_FORBIDDEN",
           "包含 BUILTIN 角色，禁止删除");

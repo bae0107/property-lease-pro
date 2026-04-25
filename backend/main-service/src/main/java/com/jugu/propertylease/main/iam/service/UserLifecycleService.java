@@ -1,6 +1,8 @@
 package com.jugu.propertylease.main.iam.service;
 
 import com.jugu.propertylease.common.exception.BusinessException;
+import com.jugu.propertylease.main.api.model.SourceType;
+import com.jugu.propertylease.main.api.model.UserType;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
 import com.jugu.propertylease.main.iam.repo.IamUserLifecycleRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserDeleteSnapshot;
@@ -48,7 +50,7 @@ public class UserLifecycleService {
     String sourceType = snapshot.sourceType();
     String userType = snapshot.userType();
 
-    if ("BUILTIN".equals(sourceType) || "SYSTEM".equals(userType)) {
+    if (SourceType.BUILTIN.getValue().equals(sourceType) || UserType.SYSTEM.getValue().equals(userType)) {
       throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_USER_DELETE_FORBIDDEN",
           "内置或系统用户不允许删除");
     }

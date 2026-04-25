@@ -4,6 +4,10 @@ package com.jugu.propertylease.main.iam.bootstrap;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jugu.propertylease.common.exception.BusinessException;
+import com.jugu.propertylease.main.api.model.RoleType;
+import com.jugu.propertylease.main.api.model.SourceType;
+import com.jugu.propertylease.main.api.model.UserStatus;
+import com.jugu.propertylease.main.api.model.UserType;
 import com.jugu.propertylease.main.iam.repo.IamPermissionManifestRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserDataScopeSeed;
 import java.nio.charset.StandardCharsets;
@@ -129,7 +133,7 @@ public class PermissionManifestBootstrap {
     OffsetDateTime now = OffsetDateTime.now();
     for (ManifestRole role : builtinRoles) {
       Long roleId = permissionManifestRepository.findRoleIdByCode(role.code);
-      String roleType = role.roleType == null ? "STAFF" : role.roleType;
+      String roleType = role.roleType == null ? RoleType.STAFF.getValue() : role.roleType;
       if (roleId == null) {
         roleId = permissionManifestRepository.insertBuiltinRole(
             role.name,
@@ -185,18 +189,18 @@ public class PermissionManifestBootstrap {
               "内置用户缺少 mobile: " + user.userName);
         }
         userId = permissionManifestRepository.insertBuiltinUser(
-            user.userType == null ? "STAFF" : user.userType,
-            user.status == null ? "ACTIVE" : user.status,
+            user.userType == null ? UserType.STAFF.getValue() : user.userType,
+            user.status == null ? UserStatus.ACTIVE.getValue() : user.status,
             user.userName,
             user.realName,
             user.mobile,
             user.email,
-            user.source == null ? "BUILTIN" : user.source,
+            user.source == null ? SourceType.BUILTIN.getValue() : user.source,
             now);
       } else {
         permissionManifestRepository.updateBuiltinUserStatus(
             userId,
-            user.status == null ? "ACTIVE" : user.status,
+            user.status == null ? UserStatus.ACTIVE.getValue() : user.status,
             now);
       }
 

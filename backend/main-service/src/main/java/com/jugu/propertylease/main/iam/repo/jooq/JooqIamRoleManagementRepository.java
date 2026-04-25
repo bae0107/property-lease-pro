@@ -5,6 +5,8 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE_PERMISSION;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
+import com.jugu.propertylease.main.api.model.RoleType;
+import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.iam.repo.IamRoleManagementRepository;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamPermission;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
@@ -35,8 +37,8 @@ public class JooqIamRoleManagementRepository implements IamRoleManagementReposit
     return dsl.insertInto(IAM_ROLE)
         .set(IAM_ROLE.NAME, name)
         .set(IAM_ROLE.CODE, code)
-        .set(IAM_ROLE.ROLE_TYPE, "STAFF")
-        .set(IAM_ROLE.SOURCE_TYPE, "CUSTOM")
+        .set(IAM_ROLE.ROLE_TYPE, RoleType.STAFF.getValue())
+        .set(IAM_ROLE.SOURCE_TYPE, SourceType.CUSTOM.getValue())
         .set(IAM_ROLE.REQUIRED_DATA_SCOPE_DIMENSION, requiredDataScopeDimension)
         .set(IAM_ROLE.DESCRIPTION, description)
         .set(IAM_ROLE.CREATED_AT, now)
