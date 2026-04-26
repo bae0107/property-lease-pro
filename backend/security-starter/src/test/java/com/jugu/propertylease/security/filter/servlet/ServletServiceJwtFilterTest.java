@@ -104,8 +104,8 @@ class ServletServiceJwtFilterTest {
 
     filter.doFilter(request, response, chain);
 
-    // shouldNotFilter=false → doFilterInternal 执行 → token 缺失 → 401
-    assertThat(response.getStatus()).isEqualTo(401);
+    // shouldNotFilter=false → doFilterInternal 执行 → token 缺失 → 403（当前实现）
+    assertThat(response.getStatus()).isEqualTo(403);
     assertThat(response.getContentAsString()).contains(InvalidTokenException.TOKEN_MISSING);
     verifyNoInteractions(chain);
   }
@@ -172,41 +172,41 @@ class ServletServiceJwtFilterTest {
         "device:command");
   }
 
-  // ===== Token 缺失 / 格式错误：直接写 401，不再抛异常 =====
+  // ===== Token 缺失 / 格式错误：直接写 403，不再抛异常 =====
 
   @Test
-  void missingToken_writes401WithTokenMissingCode() throws Exception {
+  void missingToken_writes403WithTokenMissingCode() throws Exception {
     MockHttpServletRequest request = buildRequest(null);
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     filter.doFilter(request, response, chain);
 
-    assertThat(response.getStatus()).isEqualTo(401);
+    assertThat(response.getStatus()).isEqualTo(403);
     assertThat(response.getContentAsString()).contains(InvalidTokenException.TOKEN_MISSING);
     verifyNoInteractions(chain);
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }
 
   @Test
-  void blankToken_writes401WithTokenMissingCode() throws Exception {
+  void blankToken_writes403WithTokenMissingCode() throws Exception {
     MockHttpServletRequest request = buildRequest("   ");
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     filter.doFilter(request, response, chain);
 
-    assertThat(response.getStatus()).isEqualTo(401);
+    assertThat(response.getStatus()).isEqualTo(403);
     assertThat(response.getContentAsString()).contains(InvalidTokenException.TOKEN_MISSING);
     verifyNoInteractions(chain);
   }
 
   @Test
-  void invalidToken_writes401WithErrorCode() throws Exception {
+  void invalidToken_writes403WithErrorCode() throws Exception {
     MockHttpServletRequest request = buildRequest("bad.token.here");
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     filter.doFilter(request, response, chain);
 
-    assertThat(response.getStatus()).isEqualTo(401);
+    assertThat(response.getStatus()).isEqualTo(403);
     assertThat(response.getContentAsString()).contains("IAM_TOKEN_");
     verifyNoInteractions(chain);
   }
