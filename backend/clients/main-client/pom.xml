@@ -114,6 +114,48 @@
             </goals>
             <id>default</id>
           </execution>
+          <execution>
+            <id>internal-api</id>
+            <configuration combine.self="override">
+              <configOptions>
+                <annotationLibrary>none</annotationLibrary>
+                <apiPackage>com.jugu.propertylease.main.client.internal.api</apiPackage>
+                <configPackage>com.jugu.propertylease.main.client.config</configPackage>
+                <documentationProvider>none</documentationProvider>
+                <invokerPackage>com.jugu.propertylease.main.client</invokerPackage>
+                <library>spring-cloud</library>
+                <modelPackage>com.jugu.propertylease.main.client.internal.model</modelPackage>
+                <openApiNullable>false</openApiNullable>
+                <sourceFolder>src/main/java</sourceFolder>
+                <useFeignClientContextId>false</useFeignClientContextId>
+                <useFeignClientUrl>true</useFeignClientUrl>
+                <useJakartaEe>true</useJakartaEe>
+                <useResponseEntity>false</useResponseEntity>
+                <useSpringBoot3>true</useSpringBoot3>
+                <useSwaggerUI>false</useSwaggerUI>
+                <useTags>true</useTags>
+              </configOptions>
+              <generateApiDocumentation>false</generateApiDocumentation>
+              <generateApiTests>false</generateApiTests>
+              <generateApis>true</generateApis>
+              <generateModelDocumentation>false</generateModelDocumentation>
+              <generateModelTests>false</generateModelTests>
+              <generateModels>true</generateModels>
+              <generateSupportingFiles>false</generateSupportingFiles>
+              <generatorName>spring</generatorName>
+              <importMappings>
+                <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</importMapping>
+              </importMappings>
+              <inputSpec>${project.basedir}/../../main-service/src/main/resources/openapi/iam-internal.yaml</inputSpec>
+              <output>${project.build.directory}/generated-sources/openapi</output>
+              <schemaMappings>
+                <schemaMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</schemaMapping>
+              </schemaMappings>
+            </configuration>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+          </execution>
         </executions>
         <groupId>org.openapitools</groupId>
         <version>${openapi-generator.version}</version>
