@@ -25,6 +25,7 @@
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
                 <useSpringBoot3>true</useSpringBoot3>
+                <useTags>true</useTags>
               </configOptions>
               <generateApiDocumentation>false</generateApiDocumentation>
               <generateApiTests>false</generateApiTests>
@@ -111,6 +112,7 @@
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
                 <useSpringBoot3>true</useSpringBoot3>
+                <useTags>true</useTags>
               </configOptions>
               <generateApiDocumentation>false</generateApiDocumentation>
               <generateApiTests>false</generateApiTests>
@@ -118,7 +120,7 @@
               <generateModelDocumentation>false</generateModelDocumentation>
               <generateModelTests>false</generateModelTests>
               <generateModels>true</generateModels>
-              <generateSupportingFiles>false</generateSupportingFiles>
+              <generateSupportingFiles>true</generateSupportingFiles>
               <generatorName>spring</generatorName>
               <importMappings>
                 <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</importMapping>
