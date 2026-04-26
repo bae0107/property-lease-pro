@@ -120,9 +120,9 @@
               <configOptions>
                 <annotationLibrary>none</annotationLibrary>
                 <apiPackage>com.jugu.propertylease.main.client.internal.api</apiPackage>
-                <configPackage>com.jugu.propertylease.main.client.internal.config</configPackage>
+                <configPackage>com.jugu.propertylease.main.client.config</configPackage>
                 <documentationProvider>none</documentationProvider>
-                <invokerPackage>com.jugu.propertylease.main.client.internal</invokerPackage>
+                <invokerPackage>com.jugu.propertylease.main.client</invokerPackage>
                 <library>spring-cloud</library>
                 <modelPackage>com.jugu.propertylease.main.client.internal.model</modelPackage>
                 <openApiNullable>false</openApiNullable>
