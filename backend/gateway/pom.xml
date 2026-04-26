@@ -57,6 +57,11 @@
       <artifactId>common</artifactId>
       <groupId>com.jugu.propertylease</groupId>
     </dependency>
+    <dependency>
+      <artifactId>main-client</artifactId>
+      <groupId>com.jugu.propertylease</groupId>
+      <version>${project.version}</version>
+    </dependency>
 
     <!-- ===== Actuator ===== -->
     <dependency>

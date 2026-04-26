@@ -1,20 +1,9 @@
 package com.jugu.propertylease.gateway.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jugu.propertylease.gateway.config.GatewayProperties;
-import com.jugu.propertylease.security.constants.SecurityConstants;
+import com.jugu.propertylease.main.client.internal.api.InternalAuthApiClient;
+import com.jugu.propertylease.main.client.internal.model.AuthVersionCheckResult;
 import com.jugu.propertylease.security.filter.reactive.UserTokenVersionChecker;
-import com.jugu.propertylease.security.properties.SecurityProperties;
-import com.jugu.propertylease.security.token.ServiceTokenGenerator;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
@@ -30,30 +19,13 @@ public class MainServiceUserTokenVersionChecker implements UserTokenVersionCheck
   private static final Logger log = LoggerFactory.getLogger(MainServiceUserTokenVersionChecker.class);
 
   private final GatewayProperties.AuthVersionProperties authVersionProperties;
-  private final String checkEndpoint;
-  private final ObjectMapper objectMapper;
-  private final HttpClient httpClient;
-  private final ServiceTokenGenerator serviceTokenGenerator;
-  private final String serviceName;
-  private final String serviceJwtSecret;
-  private final int serviceJwtExpirationSeconds;
+  private final InternalAuthApiClient internalAuthApiClient;
   private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
   public MainServiceUserTokenVersionChecker(GatewayProperties gatewayProperties,
-      SecurityProperties securityProperties,
-      ServiceTokenGenerator serviceTokenGenerator,
-      ObjectMapper objectMapper) {
+      InternalAuthApiClient internalAuthApiClient) {
     this.authVersionProperties = gatewayProperties.getAuthVersion();
-    this.objectMapper = objectMapper;
-    String mainServiceUrl = gatewayProperties.getRoutes().get("main-service").getUrl();
-    this.checkEndpoint = mainServiceUrl + "/internal/v1/auth/version/check";
-    this.httpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofMillis(authVersionProperties.getRequestTimeoutMillis()))
-        .build();
-    this.serviceTokenGenerator = serviceTokenGenerator;
-    this.serviceName = securityProperties.getServiceName();
-    this.serviceJwtSecret = securityProperties.getJwt().getService().getSecret();
-    this.serviceJwtExpirationSeconds = securityProperties.getJwt().getService().getExpiration();
+    this.internalAuthApiClient = internalAuthApiClient;
   }
 
   @Override
@@ -79,32 +51,13 @@ public class MainServiceUserTokenVersionChecker implements UserTokenVersionCheck
 
   private boolean queryMainService(Long userId, Integer authVersion) {
     try {
-      String uri = checkEndpoint
-          + "?userId=" + URLEncoder.encode(userId.toString(), StandardCharsets.UTF_8)
-          + "&authVersion=" + URLEncoder.encode(authVersion.toString(), StandardCharsets.UTF_8);
-      HttpRequest request = HttpRequest.newBuilder(URI.create(uri))
-          .timeout(Duration.ofMillis(authVersionProperties.getRequestTimeoutMillis()))
-          .header(SecurityConstants.HEADER_SERVICE_TOKEN, generateServiceToken())
-          .GET()
-          .build();
-      HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-      if (response.statusCode() != 200) {
-        log.warn("authVersion check failed with status={}, userId={}, authVersion={}",
-            response.statusCode(), userId, authVersion);
-        return authVersionProperties.isFailOpen();
-      }
-      JsonNode body = objectMapper.readTree(response.body());
-      return body.path("current").asBoolean(false);
+      AuthVersionCheckResult body = internalAuthApiClient.checkAuthVersion(userId, authVersion);
+      return Boolean.TRUE.equals(body.getCurrent());
     } catch (Exception ex) {
       log.warn("authVersion check request error, userId={}, authVersion={}, failOpen={}",
           userId, authVersion, authVersionProperties.isFailOpen(), ex);
       return authVersionProperties.isFailOpen();
     }
-  }
-
-  private String generateServiceToken() {
-    return serviceTokenGenerator.generate(serviceName, null, List.of(), serviceJwtSecret,
-        serviceJwtExpirationSeconds);
   }
 
   private record CacheEntry(boolean current, long expireAtMillis) {
