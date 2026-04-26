@@ -3,12 +3,12 @@ info:
   title: Main Service Internal API
   description: |
     main-service 内部接口契约 v2（不经 Gateway，服务间直接调用）。
-    
+
     安全规则：
     - 需要有效 Service JWT（X-Service-Token）
     - 无 x-required-permission（Service 层校验调用方白名单）
     - 允许调用方：billing-service、device-service、main-service
-  version: 2.0.0
+  version: 2.1.0
 
 servers:
   - url: /internal/v1
@@ -17,6 +17,8 @@ servers:
 tags:
   - name: internal-users
     description: 内部用户管理（业务系统预创建 TENANT）
+  - name: internal-auth
+    description: 内部认证能力（供 gateway 等服务调用）
 
 paths:
 
@@ -63,6 +65,47 @@ paths:
               schema:
                 $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
 
+  /auth/version/check:
+    get:
+      tags: [ internal-auth ]
+      operationId: checkAuthVersion
+      summary: 校验 token 版本是否仍然有效
+      description: |
+        供 gateway 在用户请求进入时调用，判断 token 中 authVersion 是否与当前用户版本一致。
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: authVersion
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: 校验完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthVersionCheckResult'
+        '400':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
 components:
   schemas:
 
@@ -99,6 +142,26 @@ components:
         status:
           type: string
           enum: [ ACTIVE ]
+
+    AuthVersionCheckResult:
+      type: object
+      required: [ userId, tokenAuthVersion, currentAuthVersion, current ]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          example: 42
+        tokenAuthVersion:
+          type: integer
+          minimum: 0
+          example: 5
+        currentAuthVersion:
+          type: integer
+          minimum: 0
+          example: 6
+        current:
+          type: boolean
+          example: false
 
   securitySchemes:
     serviceJwt:
