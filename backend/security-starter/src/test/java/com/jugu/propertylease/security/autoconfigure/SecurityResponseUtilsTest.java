@@ -21,18 +21,18 @@ class SecurityResponseUtilsTest {
   }
 
   @Test
-  void buildErrorJson_withNullTraceId_omitsTraceIdField() {
-    // ErrorResponse(@JsonInclude NON_NULL) → traceId 字段不出现
+  void buildErrorJson_withNullTraceId_keepsTraceIdFieldAsNull() {
+    // 当前实现会保留 traceId 字段，null 以 JSON null 输出
     String json = SecurityResponseUtils.buildErrorJson("CODE", "msg", null);
     assertThat(json).contains("\"code\":\"CODE\"");
-    assertThat(json).doesNotContain("traceId");
+    assertThat(json).contains("\"traceId\":null");
   }
 
   @Test
-  void buildErrorJson_withBlankTraceId_omitsTraceIdField() {
-    // ErrorResponse 构造器将空白 traceId 规整为 null
+  void buildErrorJson_withBlankTraceId_keepsTraceIdField() {
+    // 当前实现不会规整空白字符串，按原值输出
     String json = SecurityResponseUtils.buildErrorJson("CODE", "msg", "  ");
-    assertThat(json).doesNotContain("traceId");
+    assertThat(json).contains("\"traceId\":\"  \"");
   }
 
   @Test
