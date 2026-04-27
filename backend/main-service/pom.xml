@@ -66,6 +66,7 @@
 
               <inputSpec>${project.basedir}/src/main/resources/openapi/iam-external.yaml</inputSpec>
               <output>${project.build.directory}/generated-sources/openapi</output>
+              <templateDirectory>${project.basedir}/src/main/resources/openapi-templates/JavaSpring</templateDirectory>
 
               <schemaMappings>
                 <schemaMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse
