@@ -240,6 +240,33 @@ class GlobalExceptionHandlerTest {
     }
   }
 
+  // ===== AccessDeniedException =====
+
+  @Nested
+  class AccessDeniedTests {
+
+    /**
+     * 用于模拟 Security 的 AccessDeniedException，避免 common 测试模块直接依赖 spring-security。
+     */
+    static class AccessDeniedException extends RuntimeException {
+
+      AccessDeniedException(String message) {
+        super(message);
+      }
+    }
+
+    @Test
+    void returns_403_forbidden_instead_of_500() {
+      ResponseEntity<ErrorResponse> resp =
+          handler.handleUnexpected(new AccessDeniedException("Access Denied"));
+
+      assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+      assertThat(resp.getBody().getCode()).isEqualTo("COMMON_HTTP_403");
+      assertThat(resp.getBody().getMessage()).isEqualTo("无权限访问");
+      assertThat(resp.getBody().getTraceId()).isEqualTo("test-trace-1");
+    }
+  }
+
   // ===== Exception 兜底 =====
 
   @Nested

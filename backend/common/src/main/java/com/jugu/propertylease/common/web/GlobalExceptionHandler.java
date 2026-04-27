@@ -142,6 +142,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
    */
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+    if (isAccessDeniedException(ex)) {
+      log.warn("权限不足: message={} traceId={}", ex.getMessage(), traceId());
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+          .body(toErrorResponse("COMMON_HTTP_403", "无权限访问"));
+    }
     log.error("未预期异常，traceId={}", traceId(), ex);
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body(toErrorResponse(
@@ -156,5 +161,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
   private ErrorResponse toErrorResponse(String code, String message) {
     return new ErrorResponse().code(code).message(message).traceId(MDC.get("traceId"));
+  }
+
+  /**
+   * 通过异常简单类名识别权限拒绝异常，避免 common 模块直接依赖 spring-security。
+   */
+  private boolean isAccessDeniedException(Exception ex) {
+    return "AccessDeniedException".equals(ex.getClass().getSimpleName());
   }
 }
