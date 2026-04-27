@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.MapBindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -237,6 +238,23 @@ class GlobalExceptionHandlerTest {
       assertThat(resp.getBody().getCode()).isEqualTo("COMMON_REQUEST_VALIDATION_FAILED");
       assertThat(resp.getBody().getMessage()).contains("ID 不能为空");
       assertThat(resp.getBody().getMessage()).contains("数量必须大于 0");
+    }
+  }
+
+  // ===== AccessDeniedException =====
+
+  @Nested
+  class AccessDeniedTests {
+
+    @Test
+    void returns_403_forbidden_instead_of_500() {
+      ResponseEntity<ErrorResponse> resp =
+          handler.handleAccessDenied(new AccessDeniedException("Access Denied"));
+
+      assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+      assertThat(resp.getBody().getCode()).isEqualTo("COMMON_HTTP_403");
+      assertThat(resp.getBody().getMessage()).isEqualTo("无权限访问");
+      assertThat(resp.getBody().getTraceId()).isEqualTo("test-trace-1");
     }
   }
 
