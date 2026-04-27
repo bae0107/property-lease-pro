@@ -35,6 +35,11 @@ security:
   service-name: gateway
   permit-paths:
     - /api/main-service/auth/**    # 唯一放行的外部路径；main-service 对应 permit-paths: /auth/**（C-42）
+    - /api/main-service/swagger-ui.html
+    - /api/main-service/swagger-ui/**
+    - /api/main-service/v3/api-docs/**
+    - /api/main-service/v3/api-docs.yaml
+
   jwt:
     user:
       secret: local-user-jwt-secret-for-development-only

@@ -25,7 +25,6 @@
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
                 <useSpringBoot3>true</useSpringBoot3>
-                <useTags>true</useTags>
               </configOptions>
               <generateApiDocumentation>false</generateApiDocumentation>
               <generateApiTests>false</generateApiTests>

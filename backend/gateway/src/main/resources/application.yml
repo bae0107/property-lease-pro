@@ -1,6 +1,9 @@
 spring:
   application:
     name: gateway
+  profiles:
+    active: local
+
 
   # Spring Cloud Gateway 超时通用配置（GW-3.6）
   cloud:

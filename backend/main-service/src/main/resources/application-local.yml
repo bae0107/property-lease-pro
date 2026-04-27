@@ -53,5 +53,14 @@ logging:
       jooq: DEBUG
 security:
   mode: mock
+  service-name: ${spring.application.name}
+  jwt:
+    user:
+      secret: local-user-jwt-secret-for-development-only
+      expiration: 1800
+    service:
+      secret: local-service-jwt-secret-for-development-only
+      expiration: 300
+
 server:
   forward-headers-strategy: framework
