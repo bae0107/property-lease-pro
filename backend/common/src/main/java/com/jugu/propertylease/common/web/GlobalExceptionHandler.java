@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -133,6 +134,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         .collect(Collectors.joining("; "));
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
         .body(toErrorResponse("COMMON_REQUEST_VALIDATION_FAILED", details));
+  }
+
+  /**
+   * 403：鉴权失败（例如 {@code @PreAuthorize} 权限不足）。
+   */
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+    log.warn("权限不足: message={} traceId={}", ex.getMessage(), traceId());
+    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(toErrorResponse("COMMON_HTTP_403", "无权限访问"));
   }
 
   // ===== 兜底 =====
