@@ -54,6 +54,12 @@ logging:
 security:
   mode: mock
   service-name: ${spring.application.name}
+  mock-user:
+    user-id: 1
+    permissions:        # 留空则 @PreAuthorize 会返回 403（用于测试无权限场景）
+      - "lease:read"
+      - "lease:write"
+      - "iam:role:read"
   jwt:
     user:
       secret: local-user-jwt-secret-for-development-only
