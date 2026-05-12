@@ -52,7 +52,7 @@ logging:
     org:
       jooq: DEBUG
 security:
-  mode: mock
+  mode: service
   service-name: ${spring.application.name}
   mock-user:
     user-id: 1

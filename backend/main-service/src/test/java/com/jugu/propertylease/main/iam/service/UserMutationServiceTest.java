@@ -12,6 +12,12 @@ import com.jugu.propertylease.main.api.model.UserType;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
 import com.jugu.propertylease.main.iam.repo.UserRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,5 +52,22 @@ class UserMutationServiceTest {
             .isEqualTo("IAM_USER_BUILTIN_FORBIDDEN"));
 
     verifyNoInteractions(authVersionService, userReadService);
+  }
+
+  @Test
+  void printTestToken() {
+    String secret = "dev-service-jwt-secret-for-development-only";
+    String token = Jwts.builder()
+        .setSubject("swagger-test")
+        .claim("userId", 1L)
+        .claim("permissions", List.of("iam:user:read", "iam:user:write",
+            "iam:role:read", "iam:role:write",
+            "iam:permission:read"))
+        .setIssuedAt(new Date())
+        .setExpiration(new Date(System.currentTimeMillis() + 86400_000L)) // 1天
+        .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)),
+            SignatureAlgorithm.HS256)
+        .compact();
+    System.out.println(token);
   }
 }

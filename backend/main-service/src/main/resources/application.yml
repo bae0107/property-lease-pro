@@ -66,7 +66,7 @@ security:
       expiration: 300
 
 server:
-  port: 8081
+  port: 8082
   tomcat:
     threads:
       max: 200
@@ -96,3 +96,23 @@ iam:
     users:
       iam-admin-initial-password: ${IAM_BOOTSTRAP_USERS_IAM_ADMIN_INITIAL_PASSWORD:}
       reset-iam-admin-password-on-sync: ${IAM_BOOTSTRAP_USERS_RESET_IAM_ADMIN_PASSWORD_ON_SYNC:false}
+
+springdoc:
+  packagesToScan: com.jugu.propertylease.main    # 扫描范围
+  group-configs:
+    - group: external
+      pathsToMatch:
+        - /auth/**
+        - /iam/**
+      packagesToScan: com.jugu.propertylease.main.api
+    - group: internal
+      pathsToMatch:
+        - /internal/**
+      packagesToScan: com.jugu.propertylease.main.internal.api
+  swagger-ui:
+    # 刷新页面后 token 不丢失
+    persist-authorization: true
+    # 默认展开 Authorize 弹框
+    display-request-duration: true
+    operations-sorter: alpha
+  # 把 swagger-ui 也加入 permit-paths，你的 application.yml 里已有，确认一下

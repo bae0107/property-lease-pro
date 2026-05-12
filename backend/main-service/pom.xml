@@ -65,7 +65,7 @@
               </importMappings>
 
               <inputSpec>${project.basedir}/src/main/resources/openapi/iam-external.yaml</inputSpec>
-              <output>${project.build.directory}/generated-sources/openapi</output>
+              <output>${project.build.directory}/generated-sources/openapi-external</output>
               <templateDirectory>${project.basedir}/src/main/resources/openapi-templates/JavaSpring</templateDirectory>
 
               <schemaMappings>
@@ -126,7 +126,7 @@
                 <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</importMapping>
               </importMappings>
               <inputSpec>${project.basedir}/src/main/resources/openapi/iam-internal.yaml</inputSpec>
-              <output>${project.build.directory}/generated-sources/openapi</output>
+              <output>${project.build.directory}/generated-sources/openapi-internal</output>
               <schemaMappings>
                 <schemaMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</schemaMapping>
               </schemaMappings>
@@ -172,21 +172,17 @@
         </executions>
       </plugin>
       <plugin>
-        <artifactId>build-helper-maven-plugin</artifactId>
         <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
         <executions>
           <execution>
-            <id>add-generated-iam-resources</id>
-            <phase>generate-resources</phase>
-            <goals>
-              <goal>add-resource</goal>
-            </goals>
+            <phase>generate-sources</phase>
+            <goals><goal>add-source</goal></goals>
             <configuration>
-              <resources>
-                <resource>
-                  <directory>${project.build.directory}/generated-resources</directory>
-                </resource>
-              </resources>
+              <sources>
+                <source>${project.build.directory}/generated-sources/openapi-external</source>
+                <source>${project.build.directory}/generated-sources/openapi-internal</source>
+              </sources>
             </configuration>
           </execution>
         </executions>
