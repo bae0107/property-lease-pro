@@ -35,7 +35,7 @@
               <generateModelTests>false</generateModelTests>
 
               <generateModels>true</generateModels>
-              <generateSupportingFiles>true</generateSupportingFiles>
+              <generateSupportingFiles>false</generateSupportingFiles>
               <generatorName>spring</generatorName>
               <importMappings>
                 <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse
@@ -120,7 +120,7 @@
               <generateModelDocumentation>false</generateModelDocumentation>
               <generateModelTests>false</generateModelTests>
               <generateModels>true</generateModels>
-              <generateSupportingFiles>true</generateSupportingFiles>
+              <generateSupportingFiles>false</generateSupportingFiles>
               <generatorName>spring</generatorName>
               <importMappings>
                 <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</importMapping>
