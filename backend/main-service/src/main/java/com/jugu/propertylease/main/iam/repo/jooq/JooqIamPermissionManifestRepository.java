@@ -10,10 +10,10 @@ import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
+import com.jugu.propertylease.main.api.model.DataScopeItem;
 import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.iam.auth.IdentityProvider;
 import com.jugu.propertylease.main.iam.repo.IamPermissionManifestRepository;
-import com.jugu.propertylease.main.iam.repo.model.UserDataScopeSeed;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -211,14 +211,15 @@ public class JooqIamPermissionManifestRepository implements IamPermissionManifes
   }
 
   @Override
-  public void replaceUserDataScopes(Long userId, List<UserDataScopeSeed> scopes, OffsetDateTime now) {
+  public void replaceUserDataScopes(Long userId, List<DataScopeItem> scopes, OffsetDateTime now) {
     dsl.deleteFrom(IAM_USER_DATA_SCOPE).where(IAM_USER_DATA_SCOPE.USER_ID.eq(userId)).execute();
-    for (UserDataScopeSeed scope : scopes) {
+    for (DataScopeItem scope : scopes) {
       dsl.insertInto(IAM_USER_DATA_SCOPE)
           .set(IAM_USER_DATA_SCOPE.USER_ID, userId)
-          .set(IAM_USER_DATA_SCOPE.SCOPE_DIMENSION, scope.dimension())
-          .set(IAM_USER_DATA_SCOPE.SCOPE_TYPE, scope.scopeType())
-          .set(IAM_USER_DATA_SCOPE.RESOURCE_ID, scope.resourceId())
+          .set(IAM_USER_DATA_SCOPE.SCOPE_DIMENSION, scope.getDimension().getValue())
+          .set(IAM_USER_DATA_SCOPE.SCOPE_TYPE, scope.getScopeType().getValue())
+          .set(IAM_USER_DATA_SCOPE.RESOURCE_ID,
+              scope.getResourceIds() != null ? scope.getResourceIds().get(0) : null)
           .set(IAM_USER_DATA_SCOPE.CREATED_AT, now)
           .execute();
     }

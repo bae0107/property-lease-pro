@@ -57,8 +57,9 @@ security:
   mock-user:
     user-id: 1
     permissions:        # 留空则 @PreAuthorize 会返回 403（用于测试无权限场景）
-      - "lease:read"
-      - "lease:write"
+      - "iam:user:write"
+      - "iam:user:read"
+      - "iam:user:password:reset"
       - "iam:role:read"
   jwt:
     user:

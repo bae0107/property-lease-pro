@@ -6,11 +6,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.jugu.propertylease.common.exception.BusinessException;
-import com.jugu.propertylease.main.api.model.PatchUserRequest;
 import com.jugu.propertylease.main.api.model.SourceType;
+import com.jugu.propertylease.main.api.model.UpdateUserRolesRequest;
 import com.jugu.propertylease.main.api.model.UserType;
 import com.jugu.propertylease.main.iam.auth.AuthVersionService;
-import com.jugu.propertylease.main.iam.repo.IamUserMutationRepository;
+import com.jugu.propertylease.main.iam.repo.UserRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -23,7 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class UserMutationServiceTest {
 
   @Mock
-  private IamUserMutationRepository userMutationRepository;
+  private UserRepository userMutationRepository;
 
   @Mock
   private AuthVersionService authVersionService;
@@ -37,13 +37,13 @@ class UserMutationServiceTest {
   @Test
   void patchUser_builtinUser_shouldReject() {
     Long userId = 100L;
-    when(userMutationRepository.findActiveUserBase(userId))
-        .thenReturn(Optional.of(new UserBaseInfo(UserType.STAFF.getValue(), SourceType.BUILTIN.getValue())));
+    when(userMutationRepository.findActiveBaseById(userId))
+        .thenReturn(Optional.of(new UserBaseInfo(UserType.STAFF, SourceType.BUILTIN)));
 
-    assertThatThrownBy(() -> userMutationService.patchUser(userId, new PatchUserRequest()))
+    assertThatThrownBy(() -> userMutationService.updateUserRoles(userId, new UpdateUserRolesRequest()))
         .isInstanceOf(BusinessException.class)
         .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-            .isEqualTo("IAM_USER_PATCH_BUILTIN_FORBIDDEN"));
+            .isEqualTo("IAM_USER_BUILTIN_FORBIDDEN"));
 
     verifyNoInteractions(authVersionService, userReadService);
   }

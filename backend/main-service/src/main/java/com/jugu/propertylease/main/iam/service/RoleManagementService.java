@@ -6,160 +6,202 @@ import com.jugu.propertylease.main.api.model.CreateRoleRequest;
 import com.jugu.propertylease.main.api.model.Permission;
 import com.jugu.propertylease.main.api.model.Role;
 import com.jugu.propertylease.main.api.model.RoleDetail;
+import com.jugu.propertylease.main.api.model.RoleType;
 import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.api.model.UpdateRolePermissionsRequest;
 import com.jugu.propertylease.main.api.model.UpdateRoleRequest;
-import com.jugu.propertylease.main.iam.repo.IamRoleManagementRepository;
+import com.jugu.propertylease.main.iam.repo.RoleRepository;
 import com.jugu.propertylease.main.iam.service.mapper.RoleDtoMapper;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 角色管理服务。
+ *
+ * <p>设计说明：
+ * <ul>
+ *   <li>格式校验（request 非空、ids 非空等）已由 OpenAPI yaml + @Valid 在框架层完成，
+ *       Service 层不再重复写 null 判断。</li>
+ *   <li>SourceType 枚举比对直接用 == 而非 .getValue().equals(...)，
+ *       依赖 RoleRepository.findById 返回已映射枚举的 IamRole POJO。</li>
+ * </ul>
+ */
 @Service
 public class RoleManagementService {
 
-  private final IamRoleManagementRepository roleRepository;
-  private final RoleDtoMapper roleDtoMapper;
+    private final RoleRepository roleRepo;
+    private final RoleDtoMapper roleDtoMapper;
 
-  public RoleManagementService(IamRoleManagementRepository roleRepository, RoleDtoMapper roleDtoMapper) {
-    this.roleRepository = roleRepository;
-    this.roleDtoMapper = roleDtoMapper;
-  }
-
-  @Transactional
-  public Role createRole(CreateRoleRequest request) {
-    if (request == null) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_CREATE_REQUEST_REQUIRED", "请求体不能为空");
-    }
-    if (request.getCode() == null || request.getCode().isBlank()) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_CODE_REQUIRED", "角色 code 不能为空");
-    }
-    if (roleRepository.existsByCode(request.getCode())) {
-      throw new BusinessException(HttpStatus.CONFLICT, "IAM_ROLE_CODE_DUPLICATE", "角色 code 已存在");
+    public RoleManagementService(RoleRepository roleRepo, RoleDtoMapper roleDtoMapper) {
+        this.roleRepo = roleRepo;
+        this.roleDtoMapper = roleDtoMapper;
     }
 
-    OffsetDateTime now = OffsetDateTime.now();
-    Long id = roleRepository.insertRole(request.getName(), request.getCode(),
-        request.getRequiredDataScopeDimension() == null ? null : request.getRequiredDataScopeDimension().getValue(),
-        request.getDescription(), now);
+    // ─────────────────────────────────────────────
+    // 创建角色
+    // ─────────────────────────────────────────────
 
-    return getRole(id);
-  }
+    @Transactional
+    public Role createRole(CreateRoleRequest request) {
+        // 格式校验（code 非空、minLength:1）由 yaml @Valid 完成，此处只做业务校验
+        if (roleRepo.existsByCode(request.getCode())) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "IAM_ROLE_CODE_DUPLICATE", "角色 code 已存在");
+        }
 
-  public RoleDetail getRoleDetail(Long roleId) {
-    Role role = getRole(roleId);
-    List<Permission> permissions = roleRepository.findActivePermissionsByRoleId(roleId).stream()
-        .map(roleDtoMapper::toPermission)
-        .toList();
+        OffsetDateTime now = OffsetDateTime.now();
 
-    return new RoleDetail()
-        .id(role.getId())
-        .name(role.getName())
-        .code(role.getCode())
-        .roleType(role.getRoleType())
-        .sourceType(role.getSourceType())
-        .requiredDataScopeDimension(role.getRequiredDataScopeDimension())
-        .description(role.getDescription())
-        .createdAt(role.getCreatedAt())
-        .updatedAt(role.getUpdatedAt())
-        .permissions(permissions);
-  }
+        // RoleType RoleType.STAFF
+//        RoleType roleType = request.getRoleType() != null ? request.getRoleType() : RoleType.STAFF;
 
-  @Transactional
-  public Role updateRole(Long roleId, UpdateRoleRequest request) {
-    if (request == null) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_UPDATE_REQUEST_REQUIRED", "请求体不能为空");
+        Long id = roleRepo.insert(
+            request.getName(),
+            request.getCode(),
+            RoleType.STAFF,
+            request.getRequiredDataScopeDimension(),   // 直接传枚举，Repo 层处理 null
+            request.getDescription(),
+            now
+        );
+
+        return requireRole(id);
     }
 
-    IamRole row = roleRepository.findRoleById(roleId);
-    if (row == null) {
-      throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在");
-    }
-    if (SourceType.BUILTIN.getValue().equals(row.getSourceType())) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_BUILTIN_MODIFY_FORBIDDEN",
-          "BUILTIN 角色不可修改");
-    }
+    // ─────────────────────────────────────────────
+    // 查询角色详情（含权限列表）
+    // ─────────────────────────────────────────────
 
-    roleRepository.updateRoleBasic(roleId,
-        request.getName() == null ? row.getName() : request.getName(),
-        request.getDescription() == null ? row.getDescription() : request.getDescription(),
-        OffsetDateTime.now());
+    public RoleDetail getRoleDetail(Long roleId) {
+        Role role = requireRole(roleId);
+        List<Permission> permissions = roleRepo.findActivePermissionsByRoleId(roleId)
+                .stream()
+                .map(roleDtoMapper::toPermission)
+                .toList();
 
-    return getRole(roleId);
-  }
-
-  @Transactional
-  public RoleDetail updateRolePermissions(Long roleId, UpdateRolePermissionsRequest request) {
-    if (request == null || request.getPermissionIds() == null) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_PERMISSION_IDS_REQUIRED",
-          "permissionIds 不能为空");
-    }
-
-    IamRole row = roleRepository.findRoleById(roleId);
-    if (row == null) {
-      throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在");
-    }
-    if (SourceType.BUILTIN.getValue().equals(row.getSourceType())) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_BUILTIN_PERMISSION_UPDATE_FORBIDDEN",
-          "BUILTIN 角色权限不可修改");
+        return new RoleDetail()
+                .id(role.getId())
+                .name(role.getName())
+                .code(role.getCode())
+                .roleType(role.getRoleType())
+                .sourceType(role.getSourceType())
+                .requiredDataScopeDimension(role.getRequiredDataScopeDimension())
+                .description(role.getDescription())
+                .createdAt(role.getCreatedAt())
+                .updatedAt(role.getUpdatedAt())
+                .permissions(permissions);
     }
 
-    List<Long> permissionIds = new ArrayList<>(new LinkedHashSet<>(request.getPermissionIds()));
-    if (!permissionIds.isEmpty()) {
-      Set<Long> activePermissionIds = roleRepository.findActivePermissionIdsByIds(permissionIds);
+    // ─────────────────────────────────────────────
+    // 更新角色基本信息
+    // ─────────────────────────────────────────────
 
-      if (activePermissionIds.size() != permissionIds.size()) {
-        Set<Long> missing = new LinkedHashSet<>(permissionIds);
-        missing.removeAll(activePermissionIds);
-        throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_PERMISSION_NOT_FOUND",
-            "权限不存在或已删除: " + missing);
-      }
+    @Transactional
+    public Role updateRole(Long roleId, UpdateRoleRequest request) {
+        IamRole row = requireActiveRole(roleId);
+        requireCustomRole(row, "修改");
+
+        OffsetDateTime now = OffsetDateTime.now();
+        // name / description 为 null 时保留原值，非 null 时覆写
+        roleRepo.updateBasic(
+                roleId,
+                request.getName() != null ? request.getName() : row.getName(),
+                request.getDescription() != null ? request.getDescription() : row.getDescription(),
+                now
+        );
+
+        return requireRole(roleId);
     }
 
-    roleRepository.replaceRolePermissions(roleId, permissionIds);
-    roleRepository.touchRoleUpdatedAt(roleId, OffsetDateTime.now());
+    // ─────────────────────────────────────────────
+    // 更新角色权限
+    // ─────────────────────────────────────────────
 
-    return getRoleDetail(roleId);
-  }
+    @Transactional
+    public RoleDetail updateRolePermissions(Long roleId, UpdateRolePermissionsRequest request) {
+        IamRole row = requireActiveRole(roleId);
+        requireCustomRole(row, "修改权限");
 
-  @Transactional
-  public void batchDeleteRoles(BatchRequest batchRequest) {
-    if (batchRequest == null || batchRequest.getIds() == null || batchRequest.getIds().isEmpty()) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_DELETE_IDS_REQUIRED", "ids 不能为空");
+        // 去重，保留顺序
+        List<Long> permissionIds = new ArrayList<>(new LinkedHashSet<>(request.getPermissionIds()));
+
+        if (!permissionIds.isEmpty()) {
+            Set<Long> activeIds = roleRepo.findActivePermissionIdsByIds(permissionIds);
+            if (activeIds.size() != permissionIds.size()) {
+                Set<Long> missing = new LinkedHashSet<>(permissionIds);
+                missing.removeAll(activeIds);
+                throw new BusinessException(HttpStatus.BAD_REQUEST,
+                        "IAM_PERMISSION_NOT_FOUND", "权限不存在或已删除：" + missing);
+            }
+        }
+
+        // replacePermissions 内部已更新 updated_at，无需额外 touchUpdatedAt
+        roleRepo.replacePermissions(roleId, permissionIds, OffsetDateTime.now());
+
+        return getRoleDetail(roleId);
     }
 
-    List<Long> ids = new ArrayList<>(new LinkedHashSet<>(batchRequest.getIds()));
-    List<IamRole> roles = roleRepository.findRolesByIds(ids);
-    if (roles.size() != ids.size()) {
-      throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "存在角色不存在");
+    // ─────────────────────────────────────────────
+    // 批量删除角色
+    // ─────────────────────────────────────────────
+
+    @Transactional
+    public void batchDeleteRoles(BatchRequest batchRequest) {
+        // ids 非空由 BatchRequest.ids @NotEmpty 在框架层保证，Service 层不重复校验
+        List<Long> ids = new ArrayList<>(new LinkedHashSet<>(batchRequest.getIds()));
+
+        List<IamRole> roles = roleRepo.findByIds(ids);
+        if (roles.size() != ids.size()) {
+            throw new BusinessException(HttpStatus.NOT_FOUND,
+                    "IAM_ROLE_NOT_FOUND", "存在不存在的角色");
+        }
+
+        boolean containsBuiltin = roles.stream()
+                .anyMatch(r -> SourceType.BUILTIN.getValue().equals(r.getSourceType()));
+        if (containsBuiltin) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST,
+                    "IAM_ROLE_DELETE_BUILTIN_FORBIDDEN", "包含 BUILTIN 角色，禁止删除");
+        }
+
+        if (roleRepo.isAnyRoleAssignedToUser(ids)) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "IAM_ROLE_DELETE_IN_USE", "包含已分配给用户的角色");
+        }
+
+        roleRepo.deletePermissionsByRoleIds(ids);
+        roleRepo.deleteByIds(ids);
     }
 
-    boolean containsBuiltin =
-        roles.stream().anyMatch(role -> SourceType.BUILTIN.getValue().equals(role.getSourceType()));
-    if (containsBuiltin) {
-      throw new BusinessException(HttpStatus.BAD_REQUEST, "IAM_ROLE_DELETE_BUILTIN_FORBIDDEN",
-          "包含 BUILTIN 角色，禁止删除");
+    // ─────────────────────────────────────────────
+    // 私有辅助方法
+    // ─────────────────────────────────────────────
+
+    /** 查询角色，不存在则抛 404。 */
+    private Role requireRole(Long roleId) {
+        return roleRepo.findById(roleId)
+                .map(roleDtoMapper::toRole)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在"));
     }
 
-    if (roleRepository.existsUserRoleByRoleIds(ids)) {
-      throw new BusinessException(HttpStatus.CONFLICT, "IAM_ROLE_DELETE_IN_USE", "包含已分配给用户的角色");
+    /** 查询角色 POJO（需要校验 sourceType 时使用），不存在则抛 404。 */
+    private IamRole requireActiveRole(Long roleId) {
+        return roleRepo.findById(roleId)
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在"));
     }
 
-    roleRepository.deleteRolePermissionsByRoleIds(ids);
-    roleRepository.deleteRolesByIds(ids);
-  }
-
-  private Role getRole(Long roleId) {
-    IamRole row = roleRepository.findRoleById(roleId);
-    if (row == null) {
-      throw new BusinessException(HttpStatus.NOT_FOUND, "IAM_ROLE_NOT_FOUND", "角色不存在");
+    /** 校验角色为 CUSTOM 类型（BUILTIN 不允许修改或删除）。 */
+    private void requireCustomRole(IamRole row, String action) {
+        if (SourceType.BUILTIN.getValue().equals(row.getSourceType())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST,
+                    "IAM_ROLE_BUILTIN_FORBIDDEN", "BUILTIN 角色不允许" + action);
+        }
     }
-    return roleDtoMapper.toRole(row);
-  }
 }

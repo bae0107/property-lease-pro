@@ -1,6 +1,6 @@
 package com.jugu.propertylease.main.iam.repo;
 
-import com.jugu.propertylease.main.iam.repo.model.UserDataScopeSeed;
+import com.jugu.propertylease.main.api.model.DataScopeItem;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
@@ -39,7 +39,7 @@ public interface IamPermissionManifestRepository {
 
   void replaceUserRoles(Long userId, List<Long> roleIds, OffsetDateTime now);
 
-  void replaceUserDataScopes(Long userId, List<UserDataScopeSeed> scopes, OffsetDateTime now);
+  void replaceUserDataScopes(Long userId, List<DataScopeItem> scopes, OffsetDateTime now);
 
   boolean credentialExists(Long userId);
 

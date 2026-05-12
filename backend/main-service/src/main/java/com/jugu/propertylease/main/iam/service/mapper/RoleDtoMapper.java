@@ -9,6 +9,10 @@ import com.jugu.propertylease.main.jooq.tables.pojos.IamPermission;
 import com.jugu.propertylease.main.jooq.tables.pojos.IamRole;
 import org.springframework.stereotype.Component;
 
+/**
+ * 角色相关 jOOQ POJO → OpenAPI DTO 转换器。
+ *
+ */
 @Component
 public class RoleDtoMapper {
 
@@ -19,8 +23,10 @@ public class RoleDtoMapper {
         .code(role.getCode())
         .roleType(RoleType.fromValue(role.getRoleType()))
         .sourceType(SourceType.fromValue(role.getSourceType()))
-        .requiredDataScopeDimension(EnumValueMapper.nullableFromValue(role.getRequiredDataScopeDimension(),
-            com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
+        // requiredDataScopeDimension 可为 null（无数据权限要求的角色）
+        .requiredDataScopeDimension(
+            EnumValueMapper.nullableFromValue(role.getRequiredDataScopeDimension(),
+                com.jugu.propertylease.main.api.model.DataScopeDimension::fromValue))
         .description(role.getDescription())
         .createdAt(role.getCreatedAt())
         .updatedAt(role.getUpdatedAt());
@@ -35,4 +41,5 @@ public class RoleDtoMapper {
         .action(permission.getAction())
         .description(permission.getDescription());
   }
+
 }

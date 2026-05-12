@@ -4,12 +4,14 @@ package com.jugu.propertylease.main.iam.bootstrap;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jugu.propertylease.common.exception.BusinessException;
+import com.jugu.propertylease.main.api.model.DataScopeDimension;
+import com.jugu.propertylease.main.api.model.DataScopeItem;
+import com.jugu.propertylease.main.api.model.DataScopeType;
 import com.jugu.propertylease.main.api.model.RoleType;
 import com.jugu.propertylease.main.api.model.SourceType;
 import com.jugu.propertylease.main.api.model.UserStatus;
 import com.jugu.propertylease.main.api.model.UserType;
 import com.jugu.propertylease.main.iam.repo.IamPermissionManifestRepository;
-import com.jugu.propertylease.main.iam.repo.model.UserDataScopeSeed;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
@@ -229,8 +231,9 @@ public class PermissionManifestBootstrap {
     if (defaultDataScopes == null || defaultDataScopes.isEmpty()) {
       return;
     }
-    List<UserDataScopeSeed> scopes = defaultDataScopes.stream()
-        .map(scope -> new UserDataScopeSeed(scope.dimension, scope.scopeType, null))
+    List<DataScopeItem> scopes = defaultDataScopes.stream()
+        .map(scope -> new DataScopeItem(DataScopeDimension.fromValue(scope.dimension),
+            DataScopeType.fromValue(scope.scopeType)))
         .toList();
     permissionManifestRepository.replaceUserDataScopes(userId, scopes, now);
   }
