@@ -21,6 +21,7 @@
                 <delegatePattern>true</delegatePattern>
                 <documentationProvider>springdoc</documentationProvider>
                 <modelPackage>com.jugu.propertylease.main.api.model</modelPackage>
+                <invokerPackage>com.jugu.propertylease.main.api</invokerPackage>
                 <openApiNullable>false</openApiNullable>
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
@@ -108,6 +109,7 @@
                 <delegatePattern>true</delegatePattern>
                 <documentationProvider>springdoc</documentationProvider>
                 <modelPackage>com.jugu.propertylease.main.internal.api.model</modelPackage>
+                <invokerPackage>com.jugu.propertylease.main.internal.api</invokerPackage>
                 <openApiNullable>false</openApiNullable>
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
@@ -127,6 +129,7 @@
               </importMappings>
               <inputSpec>${project.basedir}/src/main/resources/openapi/iam-internal.yaml</inputSpec>
               <output>${project.build.directory}/generated-sources/openapi-internal</output>
+              <templateDirectory>${project.basedir}/src/main/resources/openapi-templates/JavaSpring</templateDirectory>
               <schemaMappings>
                 <schemaMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</schemaMapping>
               </schemaMappings>
