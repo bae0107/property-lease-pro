@@ -115,6 +115,7 @@
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
                 <useSpringBoot3>true</useSpringBoot3>
+                <useTags>true</useTags>
               </configOptions>
               <generateApiDocumentation>false</generateApiDocumentation>
               <generateApiTests>false</generateApiTests>
@@ -195,8 +196,8 @@
             <goals><goal>add-source</goal></goals>
             <configuration>
               <sources>
-                <source>${project.build.directory}/generated-sources/openapi-external</source>
-                <source>${project.build.directory}/generated-sources/openapi-internal</source>
+                <source>${project.build.directory}/generated-sources/openapi-external/src/main/java</source>
+                <source>${project.build.directory}/generated-sources/openapi-internal/src/main/java</source>
               </sources>
             </configuration>
           </execution>

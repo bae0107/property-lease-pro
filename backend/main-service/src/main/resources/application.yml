@@ -104,7 +104,7 @@ springdoc:
       packagesToScan: com.jugu.propertylease.main.api
     - group: internal
       pathsToMatch:
-        - /internal/**
+#        - /internal/**
       packagesToScan: com.jugu.propertylease.main.internal.api
   swagger-ui:
     # 刷新页面后 token 不丢失
