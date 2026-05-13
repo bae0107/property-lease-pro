@@ -21,10 +21,12 @@
                 <delegatePattern>true</delegatePattern>
                 <documentationProvider>springdoc</documentationProvider>
                 <modelPackage>com.jugu.propertylease.main.api.model</modelPackage>
+                <invokerPackage>com.jugu.propertylease.main.api</invokerPackage>
                 <openApiNullable>false</openApiNullable>
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
                 <useSpringBoot3>true</useSpringBoot3>
+                <useTags>true</useTags>
               </configOptions>
               <generateApiDocumentation>false</generateApiDocumentation>
               <generateApiTests>false</generateApiTests>
@@ -35,7 +37,7 @@
               <generateModelTests>false</generateModelTests>
 
               <generateModels>true</generateModels>
-              <generateSupportingFiles>true</generateSupportingFiles>
+              <generateSupportingFiles>false</generateSupportingFiles>
               <generatorName>spring</generatorName>
               <importMappings>
                 <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse
@@ -108,11 +110,11 @@
                 <delegatePattern>true</delegatePattern>
                 <documentationProvider>springdoc</documentationProvider>
                 <modelPackage>com.jugu.propertylease.main.internal.api.model</modelPackage>
+                <invokerPackage>com.jugu.propertylease.main.internal.api</invokerPackage>
                 <openApiNullable>false</openApiNullable>
                 <useJakartaEe>true</useJakartaEe>
                 <useResponseEntity>false</useResponseEntity>
                 <useSpringBoot3>true</useSpringBoot3>
-                <useTags>true</useTags>
               </configOptions>
               <generateApiDocumentation>false</generateApiDocumentation>
               <generateApiTests>false</generateApiTests>
@@ -120,13 +122,14 @@
               <generateModelDocumentation>false</generateModelDocumentation>
               <generateModelTests>false</generateModelTests>
               <generateModels>true</generateModels>
-              <generateSupportingFiles>true</generateSupportingFiles>
+              <generateSupportingFiles>false</generateSupportingFiles>
               <generatorName>spring</generatorName>
               <importMappings>
                 <importMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</importMapping>
               </importMappings>
               <inputSpec>${project.basedir}/src/main/resources/openapi/iam-internal.yaml</inputSpec>
               <output>${project.build.directory}/generated-sources/openapi-internal</output>
+              <templateDirectory>${project.basedir}/src/main/resources/openapi-templates/JavaSpring</templateDirectory>
               <schemaMappings>
                 <schemaMapping>ErrorResponse=com.jugu.propertylease.common.model.ErrorResponse</schemaMapping>
               </schemaMappings>
@@ -175,6 +178,18 @@
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
         <executions>
+          <execution>
+            <id>add-generated-iam-resources</id>
+            <phase>generate-resources</phase>
+            <goals><goal>add-resource</goal></goals>
+            <configuration>
+              <resources>
+                <resource>
+                  <directory>${project.build.directory}/generated-resources</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
           <execution>
             <phase>generate-sources</phase>
             <goals><goal>add-source</goal></goals>

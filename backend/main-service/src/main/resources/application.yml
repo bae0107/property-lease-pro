@@ -66,7 +66,7 @@ security:
       expiration: 300
 
 server:
-  port: 8082
+  port: 8081
   tomcat:
     threads:
       max: 200
@@ -101,9 +101,6 @@ springdoc:
   packagesToScan: com.jugu.propertylease.main    # 扫描范围
   group-configs:
     - group: external
-      pathsToMatch:
-        - /auth/**
-        - /iam/**
       packagesToScan: com.jugu.propertylease.main.api
     - group: internal
       pathsToMatch:
