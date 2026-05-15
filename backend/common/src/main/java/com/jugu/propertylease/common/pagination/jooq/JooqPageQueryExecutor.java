@@ -5,6 +5,7 @@ import com.jugu.propertylease.common.pagination.core.PageQueryExecutor;
 import com.jugu.propertylease.common.pagination.core.PageSlice;
 import java.util.List;
 import java.util.Optional;
+import org.jooq.Field;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Component;
@@ -34,13 +35,24 @@ public class JooqPageQueryExecutor implements
     Condition finalCondition = definition.baseCondition().and(dynamicCondition);
     int pageNo = request.getPageNo();
     int pageSize = request.getPageSize();
-    long total = Optional.ofNullable(
-            dsl.selectCount().from(definition.from()).where(finalCondition).fetchOne(0, Long.class))
+    List<Field<?>> groupByFields = definition.groupByFields();
+
+    long total = Optional.ofNullable(groupByFields.isEmpty()
+            ? dsl.selectCount().from(definition.from()).where(finalCondition).fetchOne(0, Long.class)
+            : dsl.selectCount().from(
+                dsl.selectOne().from(definition.from()).where(finalCondition).groupBy(groupByFields)
+            ).fetchOne(0, Long.class))
         .orElse(0L);
 
-    List<R> items = dsl.select(definition.selectFields())
+    var dataQuery = dsl.select(definition.selectFields())
         .from(definition.from())
-        .where(finalCondition)
+        .where(finalCondition);
+
+    if (!groupByFields.isEmpty()) {
+      dataQuery = dataQuery.groupBy(groupByFields);
+    }
+
+    List<R> items = dataQuery
         .orderBy(definition.defaultSorts())
         .limit(pageSize)
         .offset((pageNo - 1) * pageSize)
