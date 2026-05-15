@@ -44,6 +44,8 @@ spring:
     # 使用 ConcurrentHashMap 作为底层实现。
   cache:
     type: simple
+  jooq:
+    sql-dialect: h2
 
 logging:
   level:
@@ -52,15 +54,17 @@ logging:
     org:
       jooq: DEBUG
 security:
-  mode: service
+  mode: mock
   service-name: ${spring.application.name}
   mock-user:
     user-id: 1
     permissions:        # 留空则 @PreAuthorize 会返回 403（用于测试无权限场景）
       - "iam:user:write"
+      - "iam:user:create"
       - "iam:user:read"
       - "iam:user:password:reset"
       - "iam:role:read"
+      - "iam:role:write"
   jwt:
     user:
       secret: local-user-jwt-secret-for-development-only

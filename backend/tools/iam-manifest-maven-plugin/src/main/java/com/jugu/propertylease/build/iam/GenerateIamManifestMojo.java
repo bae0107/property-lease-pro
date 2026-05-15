@@ -12,7 +12,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -35,13 +34,13 @@ public class GenerateIamManifestMojo extends AbstractMojo {
   private static final Set<String> HTTP_METHODS = Set.of(
       "get", "post", "put", "delete", "patch", "options", "head", "trace");
 
-  private static final Set<String> BUILTIN_PERMISSION_ROLES = Set.of("ADMIN", "TENANT", "CONTRACTOR");
+  private static final Set<String> BUILTIN_PERMISSION_ROLES = Set.of("IAM_ADMIN", "TENANT", "CONTRACTOR");
 
   @Parameter(defaultValue = "${project.basedir}/src/main/resources/openapi", required = true)
-  private Path openapiDir;
+  private String openapiDir;
 
   @Parameter(defaultValue = "${project.build.directory}/generated-resources/iam/permissions-manifest.json", required = true)
-  private Path outputFile;
+  private String outputFile;
 
   @Parameter
   private List<String> includeFileNameContains = List.of("external");
@@ -81,18 +80,18 @@ public class GenerateIamManifestMojo extends AbstractMojo {
 
   @Override
   public void execute() throws MojoExecutionException, MojoFailureException {
-    if (Files.notExists(openapiDir)) {
+    if (Files.notExists(Path.of(openapiDir))) {
       throw new MojoFailureException("OpenAPI directory does not exist: " + openapiDir);
     }
 
-    List<Path> yamlFiles = collectYamlFiles(openapiDir);
+    List<Path> yamlFiles = collectYamlFiles(Path.of(openapiDir));
     if (yamlFiles.isEmpty()) {
       throw new MojoFailureException("No *external*.yaml files found under: " + openapiDir);
     }
 
     Map<String, PermissionDef> permissionMap = new LinkedHashMap<>();
     Map<String, Set<String>> roleToPermissionCodes = new LinkedHashMap<>();
-    roleToPermissionCodes.put("ADMIN", new LinkedHashSet<>());
+    roleToPermissionCodes.put("IAM_ADMIN", new LinkedHashSet<>());
     roleToPermissionCodes.put("TENANT", new LinkedHashSet<>());
     roleToPermissionCodes.put("CONTRACTOR", new LinkedHashSet<>());
 
@@ -266,7 +265,7 @@ public class GenerateIamManifestMojo extends AbstractMojo {
     manifest.version = buildPermissionVersion(permissionItems);
 
     BuiltinRole adminRole = role(roleAdminCode, "IAM管理员", "STAFF",
-        roleToPermissionCodes.get("ADMIN"));
+        roleToPermissionCodes.get("IAM_ADMIN"));
     BuiltinRole tenantRole = role(roleTenantCode, "租户角色", "TENANT",
         roleToPermissionCodes.get("TENANT"));
     BuiltinRole contractorRole = role(roleContractorCode, "外包角色", "CONTRACTOR",
@@ -351,9 +350,10 @@ public class GenerateIamManifestMojo extends AbstractMojo {
 
   private void writeManifest(Manifest manifest) throws MojoExecutionException {
     try {
-      Files.createDirectories(outputFile.getParent());
+      Path outputPath = Path.of(outputFile);
+      Files.createDirectories(outputPath.getParent());
       ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-      Files.writeString(outputFile, mapper.writeValueAsString(manifest), StandardCharsets.UTF_8);
+      Files.writeString(outputPath, mapper.writeValueAsString(manifest), StandardCharsets.UTF_8);
     } catch (Exception e) {
       throw new MojoExecutionException("Failed to write manifest: " + outputFile, e);
     }

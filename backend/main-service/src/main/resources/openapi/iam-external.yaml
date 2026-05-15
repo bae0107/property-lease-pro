@@ -293,6 +293,7 @@ paths:
       operationId: createUser
       summary: 创建 STAFF / CONTRACTOR 用户（创建时必须指定至少一个角色）
       x-required-permission: iam:user:create
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -785,6 +786,7 @@ paths:
       operationId: updateRole
       summary: 修改角色名称 / 描述（sourceType=BUILTIN 的角色禁止修改，code 不可修改）
       x-required-permission: iam:role:write
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
