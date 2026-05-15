@@ -44,19 +44,25 @@ public class JooqPageQueryExecutor implements
             ).fetchOne(0, Long.class))
         .orElse(0L);
 
-    var dataQuery = dsl.select(definition.selectFields())
-        .from(definition.from())
-        .where(finalCondition);
-
-    if (!groupByFields.isEmpty()) {
-      dataQuery = dataQuery.groupBy(groupByFields);
+    List<R> items;
+    if (groupByFields.isEmpty()) {
+      items = dsl.select(definition.selectFields())
+          .from(definition.from())
+          .where(finalCondition)
+          .orderBy(definition.defaultSorts())
+          .limit(pageSize)
+          .offset((pageNo - 1) * pageSize)
+          .fetch(definition.rowMapper());
+    } else {
+      items = dsl.select(definition.selectFields())
+          .from(definition.from())
+          .where(finalCondition)
+          .groupBy(groupByFields)
+          .orderBy(definition.defaultSorts())
+          .limit(pageSize)
+          .offset((pageNo - 1) * pageSize)
+          .fetch(definition.rowMapper());
     }
-
-    List<R> items = dataQuery
-        .orderBy(definition.defaultSorts())
-        .limit(pageSize)
-        .offset((pageNo - 1) * pageSize)
-        .fetch(definition.rowMapper());
     return new PageSlice<>(pageNo, pageSize, total, items);
   }
 }
