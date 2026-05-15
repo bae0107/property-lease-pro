@@ -42,12 +42,8 @@ public final class IamUsersPageResource implements JooqPageResourceDefinition<Us
 
     private static final String ROLE_NAMES_ALIAS = "roleNames";
 
-    // 与 IAM_USER 区分：JOIN 表使用语义化别名，阅读 SQL 链路更直观。
-    private static final com.jugu.propertylease.main.jooq.tables.IamUserRole USER_ROLE = IAM_USER_ROLE.as("userRole");
-    private static final com.jugu.propertylease.main.jooq.tables.IamRole ROLE = IAM_ROLE.as("role");
-
     private static final Field<String> ROLE_NAMES_FIELD = DSL.coalesce(
-            DSL.groupConcatDistinct(ROLE.NAME).orderBy(ROLE.NAME.asc()).separator(","),
+            DSL.groupConcatDistinct(IAM_ROLE.NAME).orderBy(IAM_ROLE.NAME.asc()).separator(","),
             DSL.inline("-"))
             .as(ROLE_NAMES_ALIAS);
 
@@ -161,8 +157,8 @@ public final class IamUsersPageResource implements JooqPageResourceDefinition<Us
     @Override
     public TableLike<?> from() {
         return IAM_USER
-                .leftJoin(USER_ROLE).on(USER_ROLE.USER_ID.eq(IAM_USER.ID))
-                .leftJoin(ROLE).on(USER_ROLE.ROLE_ID.eq(ROLE.ID));
+                .leftJoin(IAM_USER_ROLE).on(IAM_USER_ROLE.USER_ID.eq(IAM_USER.ID))
+                .leftJoin(IAM_ROLE).on(IAM_USER_ROLE.ROLE_ID.eq(IAM_ROLE.ID));
     }
 
     @Override
