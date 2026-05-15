@@ -1,7 +1,9 @@
 package com.jugu.propertylease.main.iam.page;
 
+import static com.jugu.propertylease.main.jooq.Tables.IAM_ROLE;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER;
 import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_DATA_SCOPE;
+import static com.jugu.propertylease.main.jooq.Tables.IAM_USER_ROLE;
 
 import com.jugu.propertylease.common.model.ColumnMeta;
 import com.jugu.propertylease.common.model.FilterFieldMeta;
@@ -40,12 +42,9 @@ public final class IamUsersPageResource implements JooqPageResourceDefinition<Us
 
     private static final String ROLE_NAMES_ALIAS = "roleNames";
 
-    private static final Field<String> ROLE_NAMES_FIELD = DSL.field(
-                    "( SELECT COALESCE(GROUP_CONCAT(DISTINCT r.name ORDER BY r.name SEPARATOR ','), '-')"
-                            + "  FROM iam_user_role ur"
-                            + "  JOIN iam_role r ON ur.role_id = r.id"
-                            + "  WHERE ur.user_id = {0} )",
-                    String.class, IAM_USER.ID)
+    private static final Field<String> ROLE_NAMES_FIELD = DSL.coalesce(
+            DSL.groupConcatDistinct(IAM_ROLE.NAME).orderBy(IAM_ROLE.NAME.asc()).separator(","),
+            DSL.inline("-"))
             .as(ROLE_NAMES_ALIAS);
 
     private final JooqPageSchema pageSchema;
@@ -157,12 +156,28 @@ public final class IamUsersPageResource implements JooqPageResourceDefinition<Us
 
     @Override
     public TableLike<?> from() {
-        return IAM_USER;
+        return IAM_USER
+                .leftJoin(IAM_USER_ROLE).on(IAM_USER_ROLE.USER_ID.eq(IAM_USER.ID))
+                .leftJoin(IAM_ROLE).on(IAM_USER_ROLE.ROLE_ID.eq(IAM_ROLE.ID));
     }
 
     @Override
     public Condition baseCondition() {
         return IAM_USER.DELETED_AT.isNull();
+    }
+
+    /**
+     * selectFields() 定义“要返回哪些列”；
+     * groupByFields() 定义“在存在聚合列（如 roleNames）时，哪些非聚合列用于分组去重”。
+     */
+    @Override
+    public List<Field<?>> groupByFields() {
+        return List.of(
+                IAM_USER.ID, IAM_USER.USER_NAME, IAM_USER.REAL_NAME,
+                IAM_USER.MOBILE, IAM_USER.EMAIL,
+                IAM_USER.USER_TYPE, IAM_USER.SOURCE_TYPE, IAM_USER.SOURCE,
+                IAM_USER.CREATED_AT, IAM_USER.UPDATED_AT,
+                IAM_USER.STATUS);
     }
 
     @Override

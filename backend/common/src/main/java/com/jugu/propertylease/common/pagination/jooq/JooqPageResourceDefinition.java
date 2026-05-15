@@ -7,6 +7,7 @@ import com.jugu.propertylease.common.pagination.jooq.schema.JooqPageSchema;
 import java.util.List;
 import java.util.Map;
 import org.jooq.Condition;
+import org.jooq.Field;
 import org.jooq.RecordMapper;
 import org.jooq.SelectFieldOrAsterisk;
 import org.jooq.SortField;
@@ -21,6 +22,10 @@ public interface JooqPageResourceDefinition<R> extends PageResourceDefinition<R>
   Condition baseCondition();
 
   List<SortField<?>> defaultSorts();
+
+  default List<Field<?>> groupByFields() {
+    return List.of();
+  }
 
   RecordMapper<org.jooq.Record, R> rowMapper();
 
