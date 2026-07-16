@@ -26,7 +26,7 @@ public interface {{classname}}Delegate {
     {{#vendorExtensions.x-required-permission}}
     @PreAuthorize("hasPermission(null, '{{vendorExtensions.x-required-permission}}')")
     {{/vendorExtensions.x-required-permission}}
-    default {{#isVoid}}void{{/isVoid}}{{^isVoid}}{{#responseWrapper}}{{.}}<{{/responseWrapper}}{{#returnType}}{{{.}}}{{/returnType}}{{^returnType}}void{{/returnType}}{{#responseWrapper}}>{{/responseWrapper}}{{/isVoid}} {{operationId}}({{#allParams}}{{{dataType}}} {{paramName}}{{^-last}}, {{/-last}}{{/allParams}}){{#unhandledException}} throws Exception{{/unhandledException}} {
+    default {{#isVoid}}void{{/isVoid}}{{^isVoid}}{{#responseWrapper}}{{.}}<{{/responseWrapper}}{{#isArray}}java.util.List<{{{returnBaseType}}}>{{/isArray}}{{^isArray}}{{#isMap}}java.util.Map<String, {{{returnBaseType}}}>{{/isMap}}{{^isMap}}{{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}void{{/returnType}}{{/isMap}}{{/isArray}}{{#responseWrapper}}>{{/responseWrapper}}{{/isVoid}} {{operationId}}({{#allParams}}{{{dataType}}} {{paramName}}{{^-last}}, {{/-last}}{{/allParams}}){{#unhandledException}} throws Exception{{/unhandledException}} {
         throw new UnsupportedOperationException("Not implemented");
     }
 

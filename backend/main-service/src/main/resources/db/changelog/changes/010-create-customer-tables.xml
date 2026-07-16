@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         customer 模块数据库表
+         - enterprise：企业信息
+         - employee：企业员工信息（business 层称为 tenant）
+         ========================================================= -->
+
+    <changeSet id="010-create-enterprise" author="dev">
+        <createTable tableName="enterprise" remarks="企业信息">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(200)" remarks="企业名称">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+                remarks="企业状态：ACTIVE | INACTIVE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="contact_name" type="VARCHAR(100)" remarks="联系人姓名"/>
+            <column name="contact_mobile" type="VARCHAR(20)" remarks="联系电话"/>
+            <column name="remark" type="VARCHAR(500)" remarks="备注"/>
+            <column name="created_by" type="BIGINT" remarks="创建者 iam_user.id"/>
+            <column name="created_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="enterprise" indexName="idx_enterprise_status">
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="010-create-employee" author="dev">
+        <createTable tableName="employee" remarks="企业员工（入住语境中称为 tenant，tenant_id = employee.id）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="enterprise_id" type="BIGINT" remarks="所属企业 enterprise.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(100)" remarks="员工姓名">
+                <constraints nullable="false"/>
+            </column>
+            <column name="mobile" type="VARCHAR(20)" remarks="手机号（用于 IAM 用户关联，非全局唯一）"/>
+            <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+                remarks="员工状态：ACTIVE | INACTIVE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="BIGINT" remarks="创建者 iam_user.id"/>
+            <column name="created_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="employee" indexName="idx_employee_enterprise_status">
+            <column name="enterprise_id"/>
+            <column name="status"/>
+        </createIndex>
+
+        <createIndex tableName="employee" indexName="idx_employee_mobile">
+            <column name="mobile"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

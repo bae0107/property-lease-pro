@@ -1,0 +1,33 @@
+@startuml
+title Transfer, Check-out and Enterprise Return Interaction
+
+actor STAFF
+actor TENANT
+participant Occupancy
+participant Contract
+participant Metering
+participant Accounting
+participant DoorLock
+
+STAFF -> Occupancy : transferTenant(fromStay, toContractRoom)
+Occupancy -> Accounting : validate personal deposit ACTIVE
+Occupancy -> Contract : validate target contract READY_FOR_CHECK_IN
+Occupancy -> Metering : collectCheckOutReadings(fromStay)
+Occupancy -> Metering : collectCheckInReadings(newStay)
+Occupancy -> Accounting : transferPersonalDepositEligibility(fromStay, newStay)
+Occupancy -> Accounting : transferTenantRoomSubBalance(fromRoomAccount, toRoomAccount)
+Occupancy -> DoorLock : revoke old / issue new credential
+Occupancy --> STAFF : transferCompleted
+
+TENANT -> Occupancy : checkOut(stayId)
+Occupancy -> Metering : collectCheckOutReadings(stay)
+Occupancy -> DoorLock : revoke credential
+Occupancy -> Accounting : settlePersonalDepositOnCheckout(stay)
+Occupancy --> TENANT : checkoutCompleted
+
+STAFF -> Contract : applyFullReturnRooms(contractId)
+Contract -> Occupancy : validate all stays checked out
+Contract -> Accounting : settleContractReturn(contractId)
+Accounting --> Contract : settlementBillCreated / refundBillCreated
+Contract --> STAFF : contractStatus=SETTLING
+@enduml

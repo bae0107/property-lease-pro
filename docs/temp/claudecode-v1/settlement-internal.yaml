@@ -1,0 +1,52 @@
+openapi: 3.0.3
+info:
+  title: Main Service Internal API - Settlement Module
+  description: |
+    settlement 模块内部接口契约。
+    允许调用方：billing-service（追缴账单支付回调）。
+  version: 1.0.0
+servers:
+  - url: /internal/v1
+tags:
+  - name: internal-settlement
+
+paths:
+
+  /settlement/bill-paid:
+    post:
+      tags: [ internal-settlement ]
+      operationId: settlementBillPaidCallback
+      summary: 结算追缴账单支付成功回调
+      description: |
+        由 Billing Service 在追缴账单支付完成后调用。
+        执行：账户余额扣款 → 关闭账户 → 更新结算单 COMPLETED → 回调 contract。
+        幂等：同一 settlementId + billId 重复调用不重复处理。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettlementBillPaidRequest'
+      responses:
+        '200':
+          description: 处理成功
+
+components:
+  schemas:
+
+    SettlementBillPaidRequest:
+      type: object
+      required:
+        - settlementId
+        - billId
+        - paidAt
+      properties:
+        settlementId:
+          type: integer
+          format: int64
+        billId:
+          type: integer
+          format: int64
+        paidAt:
+          type: string
+          format: date-time

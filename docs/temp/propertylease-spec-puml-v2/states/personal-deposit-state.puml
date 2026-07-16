@@ -1,0 +1,11 @@
+@startuml
+title Personal Deposit Ledger State Machine
+
+[*] --> PENDING_PAYMENT : createPersonalDepositBill
+PENDING_PAYMENT --> ACTIVE : payment success
+ACTIVE --> REFUND_PENDING : checkout settlement starts
+REFUND_PENDING --> CLOSED : refund or offset completed
+ACTIVE --> CLOSED : exceptional force close
+
+CLOSED --> [*]
+@enduml

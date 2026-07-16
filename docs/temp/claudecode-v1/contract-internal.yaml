@@ -1,0 +1,126 @@
+openapi: 3.0.3
+info:
+  title: Main Service Internal API - Contract Module
+  description: |
+    contract 模块内部接口契约。
+    安全规则：需要有效 Service JWT，无 x-required-permission。
+    允许调用方：billing-service（押金/租金账单回调）、main-service 内部模块（settlement 结算完成回调）。
+  version: 1.0.0
+
+servers:
+  - url: /internal/v1
+
+tags:
+  - name: internal-contract
+    description: 合同内部回调接口
+
+paths:
+
+  /contract/deposit-paid:
+    post:
+      tags: [ internal-contract ]
+      operationId: depositPaidCallback
+      summary: 押金账单支付成功回调，触发合同自动激活
+      description: |
+        由 Billing Service 在押金账单支付完成后调用。
+        触发合同状态 SIGNED → READY_FOR_ALLOCATION，并为所有 contractRoom 创建 ROOM_SHARED 账户。
+        幂等：同一 contractId + billId 重复调用不重复处理。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepositPaidCallbackRequest'
+      responses:
+        '200':
+          description: 处理成功
+        '400':
+          description: 参数校验失败 / 合同状态不允许
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/rent-bill-paid:
+    post:
+      tags: [ internal-contract ]
+      operationId: rentBillPaidCallback
+      summary: 租金账单支付成功回调
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentBillPaidCallbackRequest'
+      responses:
+        '200':
+          description: 处理成功
+
+  /contract/tenancy-settlement-complete:
+    post:
+      tags: [ internal-contract ]
+      operationId: tenancySettlementCompleteCallback
+      summary: Settlement 通知退宿结算完成，更新 tenancy → CHECKED_OUT
+      description: |
+        由 Settlement 模块在结算完成后调用。
+        触发：tenancy → CHECKED_OUT，释放 IAM 用户，释放房间状态，
+        若合同所有 tenancy 均退宿且 contractRoom 全部 RELEASED → 触发合同终止结算。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenancySettlementCompleteRequest'
+      responses:
+        '200':
+          description: 处理成功
+
+components:
+  schemas:
+
+    DepositPaidCallbackRequest:
+      type: object
+      required:
+        - contractId
+        - billId
+        - paidAt
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        billId:
+          type: integer
+          format: int64
+        paidAt:
+          type: string
+          format: date-time
+
+    RentBillPaidCallbackRequest:
+      type: object
+      required:
+        - contractId
+        - rentBillId
+        - paidAt
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        rentBillId:
+          type: integer
+          format: int64
+        paidAt:
+          type: string
+          format: date-time
+
+    TenancySettlementCompleteRequest:
+      type: object
+      required:
+        - tenancyId
+        - settlementId
+      properties:
+        tenancyId:
+          type: integer
+          format: int64
+        settlementId:
+          type: integer
+          format: int64

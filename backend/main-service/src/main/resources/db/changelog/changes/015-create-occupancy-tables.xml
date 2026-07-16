@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         occupancy 模块：房间分配、入住记录、换宿流水
+         ⚠️ 本文件此前在任何上传包里都不存在（跟 014 一样，HANDOFF.md 列为"已完成"
+         但实际没有交付），本次据 JooqOccupancyRepository / AssignmentService /
+         CheckInService / CheckOutService / TransferService 里实际引用的列名重建。
+         状态机：
+           RoomAssignment: ASSIGNED → CONSUMED（入住时）/ CANCELLED
+           Stay: CHECKED_IN → CHECKED_OUT / TRANSFERRED
+         ========================================================= -->
+
+    <changeSet id="015-room-assignment" author="dev">
+        <createTable tableName="room_assignment" remarks="租客-房间分配记录（入住前的预分配）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="contract_id" type="BIGINT" remarks="contract.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="contract_room_id" type="BIGINT" remarks="contract_room.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT" remarks="room_info.RoomId（冗余，便于按房间统计）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tenant_id" type="BIGINT" remarks="customer.employee.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" remarks="ASSIGNED|CONSUMED|CANCELLED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="assigned_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="assigned_by" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="cancelled_at" type="DATETIME(3)"/>
+            <column name="cancelled_by" type="BIGINT"/>
+        </createTable>
+
+        <createIndex tableName="room_assignment" indexName="idx_ra_room_status"
+            remarks="容量校验（ASSIGNED+CHECKED_IN &lt; maxOccupancy）用">
+            <column name="room_id"/>
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="room_assignment" indexName="idx_ra_croom_tenant"
+            remarks="防重复分配（findActiveAssignment）用">
+            <column name="contract_room_id"/>
+            <column name="tenant_id"/>
+        </createIndex>
+        <createIndex tableName="room_assignment" indexName="idx_ra_tenant">
+            <column name="tenant_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="015-stay" author="dev">
+        <createTable tableName="stay" remarks="入住记录">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="source_assignment_id" type="BIGINT" remarks="room_assignment.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="contract_id" type="BIGINT" remarks="contract.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="contract_room_id" type="BIGINT" remarks="contract_room.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT" remarks="room_info.RoomId">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tenant_id" type="BIGINT" remarks="customer.employee.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stay_status" type="VARCHAR(20)" remarks="CHECKED_IN|CHECKED_OUT|TRANSFERRED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="check_in_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="checked_in_by" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="check_out_at" type="DATETIME(3)"/>
+            <column name="iam_user_id" type="BIGINT" remarks="iam_user.id，checkIn 时回写（幂等复用租客小程序账号）"/>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+
+        <createIndex tableName="stay" indexName="idx_stay_room_status"
+            remarks="容量校验 / hasCheckedInStays 用">
+            <column name="room_id"/>
+            <column name="stay_status"/>
+        </createIndex>
+        <createIndex tableName="stay" indexName="idx_stay_tenant">
+            <column name="tenant_id"/>
+        </createIndex>
+        <createIndex tableName="stay" indexName="idx_stay_contract">
+            <column name="contract_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="015-transfer-record" author="dev">
+        <createTable tableName="transfer_record" remarks="跨合同换宿流水（审计用）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="from_stay_id" type="BIGINT" remarks="stay.id（原入住记录，已置为 TRANSFERRED）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="from_contract_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="from_room_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="to_stay_id" type="BIGINT" remarks="stay.id（新建入住记录）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="to_contract_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="to_contract_room_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="to_room_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="transferred_by" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="transfer_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+
+        <createIndex tableName="transfer_record" indexName="idx_tr_tenant">
+            <column name="tenant_id"/>
+        </createIndex>
+        <createIndex tableName="transfer_record" indexName="idx_tr_from_stay">
+            <column name="from_stay_id"/>
+        </createIndex>
+        <createIndex tableName="transfer_record" indexName="idx_tr_to_stay">
+            <column name="to_stay_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

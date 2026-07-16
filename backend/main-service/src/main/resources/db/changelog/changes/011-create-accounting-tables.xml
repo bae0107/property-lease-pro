@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         accounting 模块：房间账户、子余额、流水、账单、押金台账、全局配置
+         ========================================================= -->
+
+    <changeSet id="011-create-room-account" author="dev">
+        <createTable tableName="room_account" remarks="房间水电账户（1:1 对应房间，不随合同销毁）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT" remarks="room_info.RoomId">
+                <constraints unique="true" nullable="false"/>
+            </column>
+            <column name="current_contract_id" type="BIGINT" remarks="当前绑定合同 ID"/>
+            <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+                remarks="ACTIVE | FROZEN | CLOSED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="011-create-room-account-sub-balance" author="dev">
+        <createTable tableName="room_account_sub_balance"
+            remarks="账户子余额（企业子余额优先扣，不足部分租客均摊）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_account_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="owner_type" type="VARCHAR(20)"
+                remarks="ENTERPRISE | TENANT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="owner_id" type="BIGINT"
+                remarks="enterprise.id 或 employee.id（即 tenant_id）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="available_balance" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+            <column name="frozen_balance" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+        <createIndex tableName="room_account_sub_balance"
+            indexName="uq_sub_balance_account_owner" unique="true">
+            <column name="room_account_id"/>
+            <column name="owner_type"/>
+            <column name="owner_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="011-create-room-account-entry" author="dev">
+        <createTable tableName="room_account_entry" remarks="账户流水明细（所有余额变动必须记录）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_account_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="sub_balance_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="owner_type" type="VARCHAR(20)"><constraints nullable="false"/></column>
+            <column name="owner_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="entry_type" type="VARCHAR(30)"
+                remarks="RECHARGE|DAILY_DEDUCT|TRANSFER_OUT|TRANSFER_IN|REFUND|FREEZE|UNFREEZE|ADJUST|INSUFFICIENT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount" type="DECIMAL(12,2)"
+                remarks="正数=入账，负数=出账">
+                <constraints nullable="false"/>
+            </column>
+            <column name="related_bill_id" type="BIGINT" remarks="关联 bill.id（可空）"/>
+            <column name="occurred_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="note" type="VARCHAR(200)"/>
+        </createTable>
+        <createIndex tableName="room_account_entry" indexName="idx_entry_account_id">
+            <column name="room_account_id"/>
+            <column name="occurred_at"/>
+        </createIndex>
+        <createIndex tableName="room_account_entry" indexName="idx_entry_sub_balance_id">
+            <column name="sub_balance_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="011-create-bill" author="dev">
+        <createTable tableName="bill" remarks="账单台账（统一管理所有账单类型）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="bill_no" type="VARCHAR(32)" remarks="业务账单号">
+                <constraints unique="true" nullable="false"/>
+            </column>
+            <column name="bill_type" type="VARCHAR(30)"
+                remarks="ENTERPRISE_SIGN_BILL|PERSONAL_DEPOSIT_BILL|RECHARGE_BILL|SETTLEMENT_BILL|REFUND_BILL">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bill_owner_type" type="VARCHAR(20)"
+                remarks="ENTERPRISE | TENANT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bill_owner_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="contract_id" type="BIGINT"/>
+            <column name="room_id" type="BIGINT"/>
+            <column name="tenant_id" type="BIGINT" remarks="个人相关账单时填（押金、充值）"/>
+            <column name="total_amount" type="DECIMAL(12,2)"><constraints nullable="false"/></column>
+            <column name="bill_status" type="VARCHAR(20)" defaultValue="PENDING"
+                remarks="PENDING | PAID | CANCELLED | REFUNDED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="billing_service_bill_id" type="BIGINT"
+                remarks="billing-service 侧账单 ID（stub 阶段为 NULL）"/>
+            <column name="paid_at" type="DATETIME(3)"/>
+            <column name="created_by" type="BIGINT"/>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+        <createIndex tableName="bill" indexName="idx_bill_owner">
+            <column name="bill_owner_type"/>
+            <column name="bill_owner_id"/>
+            <column name="bill_status"/>
+        </createIndex>
+        <createIndex tableName="bill" indexName="idx_bill_contract">
+            <column name="contract_id"/>
+            <column name="bill_type"/>
+        </createIndex>
+        <createIndex tableName="bill" indexName="idx_bill_billing_service_id">
+            <column name="billing_service_bill_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="011-create-deposit-ledger" author="dev">
+        <createTable tableName="deposit_ledger" remarks="押金台账（企业押金 + 个人押金）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="deposit_type" type="VARCHAR(20)"
+                remarks="ENTERPRISE | PERSONAL">
+                <constraints nullable="false"/>
+            </column>
+            <column name="owner_type" type="VARCHAR(20)"
+                remarks="ENTERPRISE | TENANT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="owner_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="contract_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="current_stay_id" type="BIGINT"
+                remarks="个人押金当前关联的 stay（换宿时更新，不重缴）"/>
+            <column name="original_amount" type="DECIMAL(12,2)"><constraints nullable="false"/></column>
+            <column name="occupied_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"
+                remarks="已被欠费抵扣的金额"/>
+            <column name="refundable_amount" type="DECIMAL(12,2)"
+                remarks="应退金额（结算时计算写入）"/>
+            <column name="status" type="VARCHAR(20)"
+                remarks="PENDING_PAYMENT | ACTIVE | REFUND_PENDING | CLOSED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="related_bill_id" type="BIGINT" remarks="对应押金账单 bill.id"/>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+        <createIndex tableName="deposit_ledger" indexName="idx_deposit_owner">
+            <column name="owner_type"/>
+            <column name="owner_id"/>
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="deposit_ledger" indexName="idx_deposit_current_stay">
+            <column name="current_stay_id"/>
+        </createIndex>
+        <createIndex tableName="deposit_ledger" indexName="idx_deposit_contract">
+            <column name="contract_id"/>
+            <column name="deposit_type"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="011-create-system-config" author="dev">
+        <createTable tableName="system_config" remarks="系统全局配置（KV 存储）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="config_key" type="VARCHAR(100)">
+                <constraints unique="true" nullable="false"/>
+            </column>
+            <column name="config_value" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(200)"/>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+        <insert tableName="system_config">
+            <column name="config_key" value="personal_deposit_amount"/>
+            <column name="config_value" value="500.00"/>
+            <column name="description" value="个人入住押金金额（元），全局统一配置"/>
+            <column name="updated_at" valueDate="now()"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

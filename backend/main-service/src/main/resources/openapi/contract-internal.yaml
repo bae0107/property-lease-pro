@@ -1,0 +1,76 @@
+openapi: 3.0.3
+info:
+  title: Main Service Internal API — Contract Module
+  version: 1.0.0
+  description: |
+    合同内部回调接口。
+    允许调用方：accounting 模块（支付成功回调）。
+servers:
+  - url: /internal/v1
+tags:
+  - name: internal-contract
+
+paths:
+
+  /contract/sign-bill-paid:
+    post:
+      tags: [internal-contract]
+      operationId: contractSignBillPaid
+      summary: 企业签约账单支付成功 → 合同激活为 READY_FOR_CHECK_IN
+      description: |
+        由 accounting 模块在收到 billing-service 支付成功回调后调用。
+        幂等：同一 contractId 重复调用直接返回 200。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignBillPaidRequest'
+      responses:
+        '200':
+          description: 处理成功
+
+  /contract/settlement-completed:
+    post:
+      tags: [internal-contract]
+      operationId: contractSettlementCompleted
+      summary: 退房结算完成 → 合同状态推进为 COMPLETED
+      description: |
+        由 accounting 模块结算完成后调用。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettlementCompletedRequest'
+      responses:
+        '200':
+          description: 处理成功
+
+components:
+  schemas:
+
+    SignBillPaidRequest:
+      type: object
+      required: [contractId, billId, paidAt]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        billId:
+          type: integer
+          format: int64
+        paidAt:
+          type: string
+          format: date-time
+
+    SettlementCompletedRequest:
+      type: object
+      required: [contractId]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        settlementBillId:
+          type: integer
+          format: int64

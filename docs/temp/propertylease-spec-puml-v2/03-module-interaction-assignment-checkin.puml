@@ -1,0 +1,77 @@
+@startuml
+title Assignment and Check-in Interaction
+
+actor STAFF
+actor TENANT
+participant Occupancy
+participant Contract
+participant Customer
+participant Asset
+participant IAM
+participant Metering
+participant Accounting
+participant DoorLock
+
+STAFF -> Occupancy : assignTenantToRoom(contractRoomId, tenantId)
+activate Occupancy
+Occupancy -> Contract : validate status in {SIGN_BILL_PENDING, READY_FOR_CHECK_IN}
+activate Contract
+Contract --> Occupancy : valid
+deactivate Contract
+Occupancy -> Customer : validate tenant belongs to enterprise
+activate Customer
+Customer --> Occupancy : valid
+deactivate Customer
+Occupancy -> Asset : validate room capacity\n(ASSIGNED + CHECKED_IN < maxOccupancy)
+activate Asset
+Asset --> Occupancy : capacity available
+deactivate Asset
+Occupancy -> IAM : create/enable tenant user with self-check-in ability
+activate IAM
+IAM --> Occupancy : user created
+deactivate IAM
+Occupancy --> STAFF : assignmentStatus=ASSIGNED
+deactivate Occupancy
+
+TENANT -> Occupancy : selfCheckIn(assignmentId)
+activate Occupancy
+Occupancy -> Contract : validate status=READY_FOR_CHECK_IN
+activate Contract
+Contract --> Occupancy : valid
+deactivate Contract
+Occupancy -> Asset : validate room checked-in count < maxOccupancy
+activate Asset
+Asset --> Occupancy : capacity available
+deactivate Asset
+Occupancy -> Metering : collectCheckInReadings(stay)
+activate Metering
+Metering --> Occupancy : readings collected
+deactivate Metering
+Occupancy -> Accounting : createPersonalDepositBill(tenant, stay)
+activate Accounting
+Accounting --> Occupancy : bill created
+deactivate Accounting
+Occupancy -> DoorLock : issue credential
+activate DoorLock
+DoorLock --> Occupancy : credential issued
+deactivate DoorLock
+Occupancy --> TENANT : stayCreated / depositBillCreated
+deactivate Occupancy
+
+STAFF -> Occupancy : staffCheckIn(assignmentId)
+activate Occupancy
+Occupancy -> Metering : collectCheckInReadings(stay)
+activate Metering
+Metering --> Occupancy : readings collected
+deactivate Metering
+Occupancy -> Accounting : createPersonalDepositBill
+activate Accounting
+Accounting --> Occupancy : bill created
+deactivate Accounting
+Occupancy -> DoorLock : issue credential
+activate DoorLock
+DoorLock --> Occupancy : credential issued
+deactivate DoorLock
+Occupancy --> STAFF : success
+deactivate Occupancy
+@enduml

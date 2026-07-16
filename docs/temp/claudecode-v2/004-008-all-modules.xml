@@ -1,0 +1,578 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  004 — CONTRACT MODULE                                              ║
+       ╚══════════════════════════════════════════════════════════════════════╝
+
+       设计说明：
+       - DRAFT 不锁房；confirmContract 后进入 SIGN_BILL_PENDING 才锁房
+       - contract_room 有 (room_id, status=ACTIVE) 应用层唯一保证
+       - contract_charge_rule 在 confirmContract 时快照固化
+       - sign_bill_id 存 accounting 模块内部 bill.id（非 billing-service）         -->
+
+  <changeSet id="004-contract" author="dev">
+    <createTable tableName="contract" remarks="租赁合同">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="contract_no" type="VARCHAR(32)" remarks="CTR-{yyyyMM}-{seq}，全局唯一">
+        <constraints unique="true" nullable="false"/>
+      </column>
+      <column name="enterprise_id" type="BIGINT" remarks="引用 customer 模块企业 ID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="contract_status" type="VARCHAR(30)" defaultValue="DRAFT"
+        remarks="DRAFT|SIGN_BILL_PENDING|READY_FOR_CHECK_IN|PARTIALLY_RETURNED|FULLY_RETURNED|SETTLING|COMPLETED|CANCELLED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="sign_date" type="DATE"/>
+      <column name="start_date" type="DATE"><constraints nullable="false"/></column>
+      <column name="end_date" type="DATE"><constraints nullable="false"/></column>
+      <column name="payment_mode" type="VARCHAR(20)" defaultValue="MONTHLY"
+        remarks="MONTHLY | QUARTERLY"/>
+      <column name="sign_bill_id" type="BIGINT" remarks="accounting.bill.id，企业签约账单"/>
+      <column name="remark" type="VARCHAR(500)"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="contract" indexName="idx_contract_enterprise_status">
+      <column name="enterprise_id"/>
+      <column name="contract_status"/>
+    </createIndex>
+    <createIndex tableName="contract" indexName="idx_contract_end_date">
+      <column name="end_date"/>
+      <column name="contract_status"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="004-contract-room" author="dev">
+    <createTable tableName="contract_room" remarks="合同包含的房间">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="contract_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="room_id" type="BIGINT" remarks="引用 asset 模块房间 ID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="signed_rent" type="DECIMAL(12,2)" remarks="本房间签约月租金"/>
+      <column name="lease_start_date" type="DATE"/>
+      <column name="lease_end_date" type="DATE"/>
+      <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+        remarks="ACTIVE | RETURNED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="returned_at" type="DATETIME(3)"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="contract_room" indexName="idx_cr_contract_id">
+      <column name="contract_id"/>
+      <column name="status"/>
+    </createIndex>
+    <!-- room_id 查当前所属合同：应用层校验 status=ACTIVE 唯一 -->
+    <createIndex tableName="contract_room" indexName="idx_cr_room_id">
+      <column name="room_id"/>
+      <column name="status"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="004-contract-charge-rule" author="dev">
+    <createTable tableName="contract_charge_rule"
+      remarks="合同费用规则（confirmContract 时快照固化）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="contract_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="charge_type" type="VARCHAR(30)"
+        remarks="ENTERPRISE_DEPOSIT | PERSONAL_DEPOSIT | FIRST_RENT | MONTHLY_RENT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="payer_type" type="VARCHAR(20)"
+        remarks="ENTERPRISE | TENANT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="amount" type="DECIMAL(12,2)"/>
+      <column name="rule_snapshot" type="JSON" remarks="其他规则参数快照"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="contract_charge_rule" indexName="idx_ccr_contract_id">
+      <column name="contract_id"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  005 — OCCUPANCY MODULE                                             ║
+       ╚══════════════════════════════════════════════════════════════════════╝
+
+       设计说明：
+       - assignment 先行，check-in 消费 assignment
+       - 容量规则：ASSIGNED 数 + CHECKED_IN 数 <= room.max_occupancy
+         (room.max_occupancy 存在 asset 模块，应用层查询)
+       - stay.room_id 冗余，加速 metering 日结查询
+       - transfer_record 永久保存换宿历史，跨合同字段都保留               -->
+
+  <changeSet id="005-room-assignment" author="dev">
+    <createTable tableName="room_assignment" remarks="房间分配记录">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="contract_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="contract_room_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="room_id" type="BIGINT" remarks="冗余，加速容量计算">
+        <constraints nullable="false"/>
+      </column>
+      <column name="tenant_id" type="BIGINT" remarks="引用 customer 模块租客 ID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(20)" defaultValue="ASSIGNED"
+        remarks="ASSIGNED | CONSUMED | CANCELLED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="assigned_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="assigned_by" type="BIGINT" remarks="STAFF user_id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="cancelled_at" type="DATETIME(3)"/>
+      <column name="cancelled_by" type="BIGINT"/>
+    </createTable>
+    <!-- 容量校验：数 ASSIGNED status 的记录 -->
+    <createIndex tableName="room_assignment" indexName="idx_ra_room_status">
+      <column name="room_id"/>
+      <column name="status"/>
+    </createIndex>
+    <createIndex tableName="room_assignment" indexName="idx_ra_contract_room">
+      <column name="contract_id"/>
+      <column name="room_id"/>
+    </createIndex>
+    <createIndex tableName="room_assignment" indexName="idx_ra_tenant_status">
+      <column name="tenant_id"/>
+      <column name="status"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="005-stay" author="dev">
+    <createTable tableName="stay" remarks="实际居住关系记录">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="source_assignment_id" type="BIGINT"
+        remarks="入住消费的 assignment.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="contract_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="contract_room_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="room_id" type="BIGINT" remarks="冗余，metering 日结用">
+        <constraints nullable="false"/>
+      </column>
+      <column name="tenant_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="stay_status" type="VARCHAR(20)" defaultValue="CHECKED_IN"
+        remarks="CHECKED_IN | TRANSFERRED | CHECKED_OUT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="check_in_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="check_out_at" type="DATETIME(3)"/>
+      <column name="checked_in_by" type="BIGINT" remarks="操作者 user_id（self or STAFF）"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <!-- 容量校验：数 CHECKED_IN status 的记录 -->
+    <createIndex tableName="stay" indexName="idx_stay_room_status">
+      <column name="room_id"/>
+      <column name="stay_status"/>
+    </createIndex>
+    <createIndex tableName="stay" indexName="idx_stay_tenant_status">
+      <column name="tenant_id"/>
+      <column name="stay_status"/>
+    </createIndex>
+    <createIndex tableName="stay" indexName="idx_stay_contract_id">
+      <column name="contract_id"/>
+    </createIndex>
+    <createIndex tableName="stay" indexName="uq_stay_source_assignment" unique="true">
+      <column name="source_assignment_id"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="005-transfer-record" author="dev">
+    <createTable tableName="transfer_record" remarks="换宿记录">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="tenant_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="from_stay_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="from_contract_id" type="BIGINT"/>
+      <column name="from_room_id" type="BIGINT"/>
+      <column name="to_stay_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="to_contract_id" type="BIGINT"/>
+      <column name="to_contract_room_id" type="BIGINT"/>
+      <column name="to_room_id" type="BIGINT"/>
+      <column name="transfer_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="transferred_by" type="BIGINT" remarks="STAFF user_id"/>
+    </createTable>
+    <createIndex tableName="transfer_record" indexName="idx_tr_tenant_id">
+      <column name="tenant_id"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  006 — METERING MODULE                                              ║
+       ╚══════════════════════════════════════════════════════════════════════╝
+
+       设计说明：
+       - meter_device_binding 版本化，设备更换通过新版本覆盖，历史不删除
+       - settlement_anchor 的 reading_group_id 将同一入住/退宿动作的水/电/热水
+         读数关联为一组，方便查询
+       - room_daily_charge 和 tenant_apportionment 是日结产出，只写不改
+       - (room_id, settlement_date) 在 room_daily_charge 唯一，幂等重跑安全   -->
+
+  <changeSet id="006-meter-device-binding" author="dev">
+    <createTable tableName="meter_device_binding" remarks="房间计量设备绑定（版本化）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="device_id" type="BIGINT" remarks="引用 device-service 设备 ID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="meter_type" type="VARCHAR(20)"
+        remarks="WATER | ELECTRICITY | HOT_WATER">
+        <constraints nullable="false"/>
+      </column>
+      <column name="binding_start_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="binding_end_at" type="DATETIME(3)" remarks="NULL 表示当前有效"/>
+      <column name="initial_reading" type="DECIMAL(12,3)"
+        remarks="绑定时的起始读数（设备更换时为新表当前值）"/>
+      <column name="is_active" type="TINYINT(1)" defaultValueNumeric="1"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="meter_device_binding" indexName="idx_mdb_room_active">
+      <column name="room_id"/>
+      <column name="is_active"/>
+      <column name="meter_type"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="006-meter-reading" author="dev">
+    <createTable tableName="meter_reading" remarks="水电表读数记录">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="device_binding_id" type="BIGINT" remarks="关联 meter_device_binding.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="meter_type" type="VARCHAR(20)"><constraints nullable="false"/></column>
+      <column name="reading_value" type="DECIMAL(12,3)"
+        remarks="表盘累计读数（非增量）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reading_time" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="source" type="VARCHAR(20)" remarks="IOT | MANUAL"/>
+      <column name="anchor_type" type="VARCHAR(20)"
+        remarks="CHECK_IN | CHECK_OUT | PERIODIC | NULL（普通读数）"/>
+      <column name="stay_id" type="BIGINT" remarks="锚点关联 stay（CHECK_IN/CHECK_OUT 时填）"/>
+      <column name="reading_group_id" type="VARCHAR(64)"
+        remarks="同一锚点动作的分组标识（水/电/热水为同一组）"/>
+      <column name="device_id_raw" type="VARCHAR(100)" remarks="IoT 设备标识（幂等键）"/>
+      <column name="operator_id" type="BIGINT" remarks="人工录入时填"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="meter_reading" indexName="idx_mr_room_type_time">
+      <column name="room_id"/>
+      <column name="meter_type"/>
+      <column name="reading_time"/>
+    </createIndex>
+    <createIndex tableName="meter_reading" indexName="idx_mr_stay_anchor">
+      <column name="stay_id"/>
+      <column name="anchor_type"/>
+    </createIndex>
+    <!-- IoT 幂等 -->
+    <createIndex tableName="meter_reading" indexName="uq_mr_device_time" unique="true">
+      <column name="device_id_raw"/>
+      <column name="reading_time"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="006-settlement-anchor" author="dev">
+    <createTable tableName="settlement_anchor" remarks="结算锚点">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="stay_id" type="BIGINT" remarks="CHECK_IN/CHECK_OUT 时关联"/>
+      <column name="anchor_type" type="VARCHAR(20)"
+        remarks="CHECK_IN | DAILY_CLOSING | CHECK_OUT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reading_group_id" type="VARCHAR(64)"
+        remarks="对应 meter_reading.reading_group_id（本次锚点的读数分组）"/>
+      <column name="anchor_time" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="settlement_anchor" indexName="idx_sa_room_type_time">
+      <column name="room_id"/>
+      <column name="anchor_type"/>
+      <column name="anchor_time"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="006-meter-price-config" author="dev">
+    <createTable tableName="meter_price_config" remarks="水电计费单价（版本化）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="store_id" type="BIGINT" remarks="NULL 表示全局默认"/>
+      <column name="meter_type" type="VARCHAR(20)"><constraints nullable="false"/></column>
+      <column name="unit_price" type="DECIMAL(10,4)"><constraints nullable="false"/></column>
+      <column name="effective_from" type="DATE"><constraints nullable="false"/></column>
+      <column name="effective_to" type="DATE" remarks="NULL 表示当前有效"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="006-room-daily-charge" author="dev">
+    <createTable tableName="room_daily_charge" remarks="房间日费用（日结产出，只写不改）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="settlement_date" type="DATE"><constraints nullable="false"/></column>
+      <column name="water_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+      <column name="electric_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+      <column name="hot_water_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+      <column name="total_amount" type="DECIMAL(12,2)"><constraints nullable="false"/></column>
+      <column name="status" type="VARCHAR(20)"
+        remarks="PENDING | SETTLED | PARTIAL | FAILED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="room_daily_charge" indexName="uq_rdc_room_date" unique="true">
+      <column name="room_id"/>
+      <column name="settlement_date"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="006-tenant-apportionment" author="dev">
+    <createTable tableName="tenant_apportionment" remarks="租客日结分摊（日结产出）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_daily_charge_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="tenant_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="stay_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="settlement_date" type="DATE"><constraints nullable="false"/></column>
+      <column name="apportioned_amount" type="DECIMAL(12,2)"><constraints nullable="false"/></column>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="tenant_apportionment" indexName="idx_ta_charge_id">
+      <column name="room_daily_charge_id"/>
+    </createIndex>
+    <createIndex tableName="tenant_apportionment" indexName="idx_ta_stay_date">
+      <column name="stay_id"/>
+      <column name="settlement_date"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  007 — ACCOUNTING MODULE                                            ║
+       ╚══════════════════════════════════════════════════════════════════════╝
+
+       设计说明：
+       - room_account 1:1 对应 room，不随合同销毁
+       - room_account_sub_balance 按 (room_account_id, owner_type, owner_id) 唯一
+       - bill 统一管理所有账单类型，billing_service_bill_id 存对端 ID
+       - deposit_ledger 同时承载企业押金和个人押金，由 deposit_type 区分
+       - system_config 存全局配置（个人押金金额等）                         -->
+
+  <changeSet id="007-room-account" author="dev">
+    <createTable tableName="room_account" remarks="房间水电账户（1:1 对应房间）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_id" type="BIGINT"><constraints unique="true" nullable="false"/></column>
+      <column name="current_contract_id" type="BIGINT" remarks="当前绑定合同"/>
+      <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+        remarks="ACTIVE | FROZEN | CLOSED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="007-room-account-sub-balance" author="dev">
+    <createTable tableName="room_account_sub_balance" remarks="房间账户子余额（企业/租客）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_account_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="owner_type" type="VARCHAR(20)"
+        remarks="ENTERPRISE | TENANT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="owner_id" type="BIGINT"
+        remarks="enterprise_id 或 tenant_id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="available_balance" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+      <column name="frozen_balance" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="room_account_sub_balance"
+      indexName="uq_rasb_account_owner" unique="true">
+      <column name="room_account_id"/>
+      <column name="owner_type"/>
+      <column name="owner_id"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="007-room-account-entry" author="dev">
+    <createTable tableName="room_account_entry" remarks="账户流水明细">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="room_account_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="sub_balance_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="owner_type" type="VARCHAR(20)"><constraints nullable="false"/></column>
+      <column name="owner_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="entry_type" type="VARCHAR(30)"
+        remarks="RECHARGE | DAILY_DEDUCT | TRANSFER_OUT | TRANSFER_IN | REFUND | FREEZE | UNFREEZE | ADJUST | INSUFFICIENT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="amount" type="DECIMAL(12,2)"
+        remarks="正数入账，负数出账">
+        <constraints nullable="false"/>
+      </column>
+      <column name="related_bill_id" type="BIGINT" remarks="关联 bill.id"/>
+      <column name="occurred_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="note" type="VARCHAR(200)"/>
+    </createTable>
+    <createIndex tableName="room_account_entry" indexName="idx_rae_account_id">
+      <column name="room_account_id"/>
+      <column name="occurred_at"/>
+    </createIndex>
+    <createIndex tableName="room_account_entry" indexName="idx_rae_sub_balance_id">
+      <column name="sub_balance_id"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="007-bill" author="dev">
+    <createTable tableName="bill" remarks="账单（统一管理所有账单类型）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="bill_no" type="VARCHAR(32)" remarks="BILL-{type}-{yyyyMM}-{seq}">
+        <constraints unique="true" nullable="false"/>
+      </column>
+      <column name="bill_type" type="VARCHAR(30)"
+        remarks="ENTERPRISE_SIGN_BILL|PERSONAL_DEPOSIT_BILL|RECHARGE_BILL|SETTLEMENT_BILL|REFUND_BILL">
+        <constraints nullable="false"/>
+      </column>
+      <column name="bill_owner_type" type="VARCHAR(20)"
+        remarks="ENTERPRISE | TENANT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="bill_owner_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="contract_id" type="BIGINT"/>
+      <column name="room_id" type="BIGINT"/>
+      <column name="tenant_id" type="BIGINT" remarks="个人相关账单时填（押金、充值）"/>
+      <column name="total_amount" type="DECIMAL(12,2)"><constraints nullable="false"/></column>
+      <column name="bill_status" type="VARCHAR(20)" defaultValue="PENDING"
+        remarks="PENDING | PAID | CANCELLED | REFUNDED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="billing_service_bill_id" type="BIGINT"
+        remarks="billing-service 侧账单 ID（用于支付跳转）"/>
+      <column name="paid_at" type="DATETIME(3)"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="bill" indexName="idx_bill_owner">
+      <column name="bill_owner_type"/>
+      <column name="bill_owner_id"/>
+      <column name="bill_status"/>
+    </createIndex>
+    <createIndex tableName="bill" indexName="idx_bill_contract_type">
+      <column name="contract_id"/>
+      <column name="bill_type"/>
+    </createIndex>
+    <createIndex tableName="bill" indexName="idx_bill_billing_service_id">
+      <column name="billing_service_bill_id"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="007-deposit-ledger" author="dev">
+    <createTable tableName="deposit_ledger" remarks="押金台账（企业押金 + 个人押金）">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="deposit_type" type="VARCHAR(20)"
+        remarks="ENTERPRISE | PERSONAL">
+        <constraints nullable="false"/>
+      </column>
+      <column name="owner_type" type="VARCHAR(20)"
+        remarks="ENTERPRISE | TENANT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="owner_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="contract_id" type="BIGINT"><constraints nullable="false"/></column>
+      <column name="current_stay_id" type="BIGINT"
+        remarks="个人押金当前关联的 stay（换宿时更新）"/>
+      <column name="original_amount" type="DECIMAL(12,2)"><constraints nullable="false"/></column>
+      <column name="occupied_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="已被欠费抵扣的金额"/>
+      <column name="refundable_amount" type="DECIMAL(12,2)"
+        remarks="应退金额（结算时计算）"/>
+      <column name="status" type="VARCHAR(20)"
+        remarks="PENDING_PAYMENT | ACTIVE | REFUND_PENDING | CLOSED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="related_bill_id" type="BIGINT" remarks="对应押金账单 bill.id"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <createIndex tableName="deposit_ledger" indexName="idx_dl_owner">
+      <column name="owner_type"/>
+      <column name="owner_id"/>
+      <column name="status"/>
+    </createIndex>
+    <createIndex tableName="deposit_ledger" indexName="idx_dl_current_stay">
+      <column name="current_stay_id"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="007-system-config" author="dev">
+    <createTable tableName="system_config" remarks="系统全局配置">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="config_key" type="VARCHAR(100)">
+        <constraints unique="true" nullable="false"/>
+      </column>
+      <column name="config_value" type="VARCHAR(500)"><constraints nullable="false"/></column>
+      <column name="description" type="VARCHAR(200)"/>
+      <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <!-- 初始数据 -->
+    <insert tableName="system_config">
+      <column name="config_key" value="personal_deposit_amount"/>
+      <column name="config_value" value="500.00"/>
+      <column name="description" value="个人入住押金金额（元），全局统一"/>
+      <column name="updated_at" valueDate="now()"/>
+    </insert>
+  </changeSet>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  008 — SCHEDULE MODULE                                              ║
+       ╚══════════════════════════════════════════════════════════════════════╝ -->
+
+  <changeSet id="008-schedule-task-log" author="dev">
+    <createTable tableName="schedule_task_log" remarks="定时任务执行记录">
+      <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true"/></column>
+      <column name="task_type" type="VARCHAR(50)"
+        remarks="DAILY_METER_SETTLEMENT | CONTRACT_EXPIRY_CHECK">
+        <constraints nullable="false"/>
+      </column>
+      <column name="scheduled_date" type="DATE"
+        remarks="任务处理的业务日期（非执行时间）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(20)"
+        remarks="RUNNING | SUCCESS | PARTIAL_FAILURE | FAILED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="triggered_by" type="VARCHAR(20)" defaultValue="CRON"
+        remarks="CRON | MANUAL"/>
+      <column name="total_count" type="INT" defaultValueNumeric="0"/>
+      <column name="success_count" type="INT" defaultValueNumeric="0"/>
+      <column name="failure_count" type="INT" defaultValueNumeric="0"/>
+      <column name="error_summary" type="VARCHAR(2000)"/>
+      <column name="started_at" type="DATETIME(3)"/>
+      <column name="finished_at" type="DATETIME(3)"/>
+      <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+    </createTable>
+    <!-- 防重核心约束 -->
+    <createIndex tableName="schedule_task_log"
+      indexName="uq_stl_type_date" unique="true">
+      <column name="task_type"/>
+      <column name="scheduled_date"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

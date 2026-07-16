@@ -1,0 +1,382 @@
+openapi: 3.0.3
+info:
+  title: Main Service API - Account Module
+  description: |
+    account 模块对外接口契约（预付费水电钱包）。
+
+    权限规则：
+    - 所有接口需要有效 Service JWT
+    - x-required-permission 格式：account:{resource}:{action}
+
+    命名规范：
+    - 业务对象直接以业务名命名（不加 VO/DTO 后缀）
+    - 分页响应通过 allOf 继承 PageResponse，追加 items 字段
+
+    openapi-generator 配置要求：
+    - openApiNullable=false
+    - useSpringBoot3=true
+    - delegatePattern=true
+  version: 1.0.0
+servers:
+  - url: /
+    description: Gateway StripPrefix=2 后，Controller 收到的根路径
+
+tags:
+  - name: account-accounts
+    description: 账户管理（查询、详情）
+  - name: account-transactions
+    description: 账户流水查询
+  - name: account-top-up
+    description: 账户充值
+
+paths:
+
+  /account/accounts/query:
+    post:
+      tags: [ account-accounts ]
+      operationId: queryAccounts
+      summary: 分页查询账户列表
+      x-required-permission: account:account:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountPageResult'
+        '400':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /account/accounts/{id}:
+    get:
+      tags: [ account-accounts ]
+      operationId: getAccount
+      summary: 查询账户详情（含余额、状态）
+      x-required-permission: account:account:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDetail'
+        '404':
+          description: 账户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /account/accounts/{id}/transactions/query:
+    post:
+      tags: [ account-transactions ]
+      operationId: queryAccountTransactions
+      summary: 分页查询账户流水明细
+      x-required-permission: account:transaction:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionPageResult'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 账户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /account/accounts/{id}/top-up:
+    post:
+      tags: [ account-top-up ]
+      operationId: initiateTopUp
+      summary: 发起充值（生成充值账单，返回支付跳转信息）
+      x-required-permission: account:top-up:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopUpRequest'
+      responses:
+        '200':
+          description: 充值账单已生成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopUpResult'
+        '400':
+          description: 参数校验失败 / 账户状态不允许充值
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 账户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    # ── 查询请求 ──────────────────────────────────────────────────
+
+    AccountQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            accountType:
+              type: string
+              description: 账户类型筛选（ROOM_SHARED | TENANT）
+              enum: [ ROOM_SHARED, TENANT ]
+            status:
+              type: string
+              description: 账户状态筛选（ACTIVE | FROZEN | CLOSED）
+              enum: [ ACTIVE, FROZEN, CLOSED ]
+            ownerType:
+              type: string
+              description: 归属类型（CONTRACT_ROOM | TENANCY）
+              enum: [ CONTRACT_ROOM, TENANCY ]
+            ownerId:
+              type: integer
+              format: int64
+              description: 归属 ID（配合 ownerType 使用）
+
+    TransactionQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            transactionType:
+              type: string
+              description: 流水类型（TOP_UP|DEDUCT|FREEZE|UNFREEZE|REFUND|ADJUST）
+            direction:
+              type: string
+              enum: [ IN, OUT ]
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    # ── 业务对象 ──────────────────────────────────────────────────
+
+    Account:
+      type: object
+      required:
+        - id
+        - accountNo
+        - accountType
+        - ownerType
+        - ownerId
+        - balance
+        - frozenBalance
+        - status
+        - currency
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        accountNo:
+          type: string
+          description: 业务账号（ACC-{TYPE}-{yyyyMMdd}-{seq}）
+        accountType:
+          type: string
+          enum: [ ROOM_SHARED, TENANT ]
+          description: 账户类型
+        ownerType:
+          type: string
+          enum: [ CONTRACT_ROOM, TENANCY ]
+        ownerId:
+          type: integer
+          format: int64
+        balance:
+          type: number
+          format: double
+          description: 可用余额
+        frozenBalance:
+          type: number
+          format: double
+          description: 冻结余额（结算中）
+        status:
+          type: string
+          enum: [ ACTIVE, FROZEN, CLOSED ]
+        currency:
+          type: string
+          example: CNY
+        createdAt:
+          type: string
+          format: date-time
+
+    AccountDetail:
+      allOf:
+        - $ref: '#/components/schemas/Account'
+        - type: object
+          required:
+            - recentTransactions
+          properties:
+            recentTransactions:
+              type: array
+              description: 最近 5 条流水（详情页展示用）
+              items:
+                $ref: '#/components/schemas/AccountTransaction'
+
+    AccountTransaction:
+      type: object
+      required:
+        - id
+        - transactionType
+        - direction
+        - amount
+        - balanceBefore
+        - balanceAfter
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        transactionType:
+          type: string
+          enum: [ TOP_UP, DEDUCT, FREEZE, UNFREEZE, REFUND, ADJUST ]
+        direction:
+          type: string
+          enum: [ IN, OUT ]
+        amount:
+          type: number
+          format: double
+        balanceBefore:
+          type: number
+          format: double
+        balanceAfter:
+          type: number
+          format: double
+        referenceType:
+          type: string
+          description: 关联业务类型（METER_SETTLEMENT|TOP_UP_BILL|SETTLEMENT|MANUAL）
+        referenceId:
+          type: integer
+          format: int64
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── 充值 ──────────────────────────────────────────────────────
+
+    TopUpRequest:
+      type: object
+      required:
+        - amount
+        - paymentMethod
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          description: 充值金额（元）
+        paymentMethod:
+          type: string
+          enum: [ WECHAT_PAY, ALIPAY ]
+          description: 支付方式
+
+    TopUpResult:
+      type: object
+      required:
+        - billId
+        - paymentUrl
+      properties:
+        billId:
+          type: integer
+          format: int64
+          description: Billing Service 生成的充值账单 ID
+        paymentUrl:
+          type: string
+          description: 第三方支付跳转 URL
+
+    # ── 分页结果 ──────────────────────────────────────────────────
+
+    AccountPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Account'
+
+    TransactionPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AccountTransaction'

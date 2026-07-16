@@ -1,0 +1,491 @@
+openapi: 3.0.3
+info:
+  title: Main Service API — Contract Module
+  version: 1.0.0
+  description: |
+    合同管理接口（v5）。状态机：
+    DRAFT → SIGN_BILL_PENDING → READY_FOR_CHECK_IN → PARTIALLY_RETURNED → SETTLING → COMPLETED，
+    CANCELLED 为 DRAFT/SIGN_BILL_PENDING 阶段的退出分支。
+    权限格式：contract:{resource}:{action}
+servers:
+  - url: /
+tags:
+  - name: contract-contracts
+    description: 合同管理
+  - name: contract-rooms
+    description: 合同房间查询
+
+paths:
+
+  /contract/contracts:
+    post:
+      tags: [contract-contracts]
+      operationId: createContract
+      summary: 创建合同草稿
+      x-required-permission: contract:contract:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContractRequest'
+      responses:
+        '201':
+          description: 创建成功（DRAFT 状态）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '409':
+          description: 房间不可用（已被其它合同占用）
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/query:
+    post:
+      tags: [contract-contracts]
+      operationId: queryContracts
+      summary: 分页查询合同列表
+      x-required-permission: contract:contract:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractPageResult'
+
+  /contract/contracts/{id}:
+    get:
+      tags: [contract-contracts]
+      operationId: getContract
+      summary: 查询合同详情（含房间、计费规则）
+      x-required-permission: contract:contract:read
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '404':
+          description: 合同不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/confirm:
+    put:
+      tags: [contract-contracts]
+      operationId: confirmContract
+      summary: 确认签约（DRAFT → SIGN_BILL_PENDING，锁定房间并生成企业签约账单）
+      x-required-permission: contract:contract:write
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: 确认成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '409':
+          description: 合同状态不允许确认，或房间已不可用
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/cancel:
+    put:
+      tags: [contract-contracts]
+      operationId: cancelContract
+      summary: 取消合同（仅 DRAFT / SIGN_BILL_PENDING 可取消）
+      x-required-permission: contract:contract:write
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '409':
+          description: 合同状态不允许取消
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/partial-return:
+    post:
+      tags: [contract-contracts]
+      operationId: applyPartialReturn
+      summary: 部分退房（合同保留其它房间继续生效）
+      x-required-permission: contract:contract:write
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartialReturnRequest'
+      responses:
+        '200':
+          description: 退房成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '409':
+          description: 合同/房间状态不允许退房，或房间仍有在住租客
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/full-return:
+    put:
+      tags: [contract-contracts]
+      operationId: applyFullReturn
+      summary: 整体退房结束合同（READY_FOR_CHECK_IN / PARTIALLY_RETURNED → SETTLING → COMPLETED）
+      x-required-permission: contract:contract:write
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: 退房成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '409':
+          description: 合同状态不允许退房，或仍有房间在住租客未退宿
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/rooms/{id}:
+    get:
+      tags: [contract-rooms]
+      operationId: getContractRoom
+      summary: 查询单个合同房间
+      x-required-permission: contract:room:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractRoom'
+        '404':
+          description: 合同房间不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/rooms/query:
+    post:
+      tags: [contract-rooms]
+      operationId: queryContractRooms
+      summary: 查询指定合同下的房间列表
+      x-required-permission: contract:room:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractRoomQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractRoomPageResult'
+
+components:
+
+  parameters:
+    ContractId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+
+    CreateContractRequest:
+      type: object
+      required: [enterpriseId, startDate, endDate, paymentMode, rooms]
+      properties:
+        enterpriseId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        paymentMode:
+          type: string
+          description: 付款方式（如 MONTHLY / QUARTERLY，由业务侧约定取值）
+        remark:
+          type: string
+        rooms:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateContractRoomItem'
+        chargeRules:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateChargeRuleItem'
+
+    CreateContractRoomItem:
+      type: object
+      required: [roomId, signedRent, leaseStart, leaseEnd]
+      properties:
+        roomId:
+          type: integer
+          format: int64
+        signedRent:
+          type: number
+          format: decimal
+        leaseStart:
+          type: string
+          format: date
+        leaseEnd:
+          type: string
+          format: date
+
+    CreateChargeRuleItem:
+      type: object
+      required: [chargeType, payerType, amount]
+      properties:
+        chargeType:
+          type: string
+          description: 计费类型，如 ENTERPRISE_DEPOSIT（企业押金，confirmContract 时会汇总此类型金额）
+        payerType:
+          type: string
+        amount:
+          type: number
+          format: decimal
+        ruleSnapshot:
+          type: string
+          description: 计费规则快照（JSON 字符串，用于审计）
+
+    PartialReturnRequest:
+      type: object
+      required: [contractRoomIds]
+      properties:
+        contractRoomIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+
+    ContractQueryRequest:
+      type: object
+      properties:
+        enterpriseId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ContractStatus'
+        startDateFrom:
+          type: string
+          format: date
+        endDateTo:
+          type: string
+          format: date
+        page:
+          type: integer
+          default: 1
+        size:
+          type: integer
+          default: 20
+
+    ContractRoomQueryRequest:
+      type: object
+      required: [contractId]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ContractRoomStatus'
+        page:
+          type: integer
+          default: 1
+        size:
+          type: integer
+          default: 20
+
+    ContractStatus:
+      type: string
+      enum: [DRAFT, SIGN_BILL_PENDING, READY_FOR_CHECK_IN, PARTIALLY_RETURNED, SETTLING, COMPLETED, CANCELLED]
+
+    ContractRoomStatus:
+      type: string
+      enum: [PENDING, ACTIVE, RETURNED]
+
+    Contract:
+      type: object
+      required: [id, contractNo, enterpriseId, status, startDate, endDate, paymentMode]
+      properties:
+        id:
+          type: integer
+          format: int64
+        contractNo:
+          type: string
+        enterpriseId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ContractStatus'
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        paymentMode:
+          type: string
+        remark:
+          type: string
+        signBillId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ContractRoom:
+      type: object
+      required: [id, contractId, roomId, signedRent, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        signedRent:
+          type: number
+          format: decimal
+        leaseStart:
+          type: string
+          format: date
+        leaseEnd:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/ContractRoomStatus'
+        returnedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ContractChargeRule:
+      type: object
+      required: [id, contractId, chargeType, payerType, amount]
+      properties:
+        id:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        chargeType:
+          type: string
+        payerType:
+          type: string
+        amount:
+          type: number
+          format: decimal
+        ruleSnapshot:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ContractDetail:
+      allOf:
+        - $ref: '#/components/schemas/Contract'
+        - type: object
+          required: [rooms, chargeRules]
+          properties:
+            rooms:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContractRoom'
+            chargeRules:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContractChargeRule'
+
+    ContractPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Contract'
+
+    ContractRoomPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContractRoom'

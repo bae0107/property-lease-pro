@@ -1,0 +1,24 @@
+@startuml
+title Contract State Machine (Revised)
+
+[*] --> DRAFT
+
+DRAFT --> SIGN_BILL_PENDING : confirmContract / lock rooms + create sign bill
+DRAFT --> CANCELLED : cancelContract
+
+SIGN_BILL_PENDING --> READY_FOR_CHECK_IN : enterprise sign bill paid
+SIGN_BILL_PENDING --> CANCELLED : cancelContract [bill unpaid and no checked-in stay]
+
+READY_FOR_CHECK_IN --> PARTIALLY_RETURNED : partial return accepted
+READY_FOR_CHECK_IN --> FULLY_RETURNED : all rooms returned
+READY_FOR_CHECK_IN --> COMPLETED : natural end with no settlement gap
+
+PARTIALLY_RETURNED --> FULLY_RETURNED : remaining rooms returned
+PARTIALLY_RETURNED --> COMPLETED : natural end
+
+FULLY_RETURNED --> SETTLING : generate settlement
+SETTLING --> COMPLETED : settlement bill + refund flow closed
+
+CANCELLED --> [*]
+COMPLETED --> [*]
+@enduml

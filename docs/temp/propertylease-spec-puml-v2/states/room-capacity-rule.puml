@@ -1,0 +1,24 @@
+@startuml
+title Room Capacity Gate Rule
+
+start
+:load Room.maxOccupancy;
+:count activeAssignments(status=ASSIGNED);
+:count checkedInStays(status=CHECKED_IN);
+:effectiveOccupied = activeAssignments + checkedInStays;
+
+if (effectiveOccupied < maxOccupancy?) then (yes)
+  :assignment allowed;
+else (no)
+  :reject assignment;
+endif
+
+if (checkedInStays < maxOccupancy?) then (yes)
+  :check-in allowed
+(but only from ASSIGNED assignment);
+else (no)
+  :reject check-in;
+endif
+
+stop
+@enduml

@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <!-- ═══════════════════════════════════════════
+       contract — 租赁合同主表
+       ─────────────────────────────────────────
+       设计说明：
+         - contract 是整个系统的锚点，负责编排所有跨模块业务
+         - status 状态机：DRAFT→SIGNED→READY_FOR_ALLOCATION→IN_PROGRESS→TERMINATING→TERMINATED
+           CANCELLED 是 DRAFT/SIGNED 的终态
+         - deposit_bill_id 存 Billing Service 的押金账单 ID（跨服务引用，仅存 ID）
+         - payment_cycle 决定租金账单生成频率
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="006-contract" author="dev">
+    <createTable tableName="contract" remarks="租赁合同">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="contract_no" type="VARCHAR(32)"
+        remarks="合同编号，格式：CTR-{yyyyMM}-{seq}，全局唯一">
+        <constraints unique="true" nullable="false"/>
+      </column>
+      <column name="enterprise_id" type="BIGINT"
+        remarks="签约企业 ID（引用 enterprise 模块）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(30)" defaultValue="DRAFT"
+        remarks="合同状态：DRAFT|SIGNED|READY_FOR_ALLOCATION|IN_PROGRESS|TERMINATING|TERMINATED|CANCELLED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="start_date" type="DATE"
+        remarks="合同起始日期">
+        <constraints nullable="false"/>
+      </column>
+      <column name="end_date" type="DATE"
+        remarks="合同截止日期">
+        <constraints nullable="false"/>
+      </column>
+      <column name="monthly_rent" type="DECIMAL(12,2)"
+        remarks="月租金总额（元）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="payment_cycle" type="VARCHAR(20)" defaultValue="MONTHLY"
+        remarks="租金支付周期：MONTHLY | QUARTERLY">
+        <constraints nullable="false"/>
+      </column>
+      <column name="deposit_amount" type="DECIMAL(12,2)"
+        remarks="押金金额（元）"/>
+      <column name="deposit_bill_id" type="BIGINT"
+        remarks="Billing Service 押金账单 ID（跨服务存 ID）"/>
+      <column name="deposit_paid_at" type="DATETIME(3)"
+        remarks="押金支付完成时间"/>
+      <column name="terms_doc_url" type="VARCHAR(500)"
+        remarks="合同附件文件 URL"/>
+      <column name="cancel_reason" type="VARCHAR(200)"
+        remarks="取消原因（CANCELLED 时填写）"/>
+      <column name="terminate_reason" type="VARCHAR(200)"
+        remarks="退房原因（TERMINATING/TERMINATED 时填写）"/>
+      <column name="created_by" type="BIGINT"
+        remarks="创建者 user_id"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="contract" indexName="idx_contract_enterprise_status">
+      <column name="enterprise_id"/>
+      <column name="status"/>
+    </createIndex>
+
+    <createIndex tableName="contract" indexName="idx_contract_end_date">
+      <column name="end_date"/>
+      <column name="status"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       contract_room — 合同与房间关联
+       ─────────────────────────────────────────
+       设计说明：
+         - 同一房间在同一时刻只能属于一份活跃合同（应用层保证 + 索引辅助）
+         - shared_account_id：合同激活（READY_FOR_ALLOCATION）时由 account 模块创建
+         - status RELEASED：该房间下所有 tenancy 均 CHECKED_OUT 且结算完成
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="006-contract-room" author="dev">
+    <createTable tableName="contract_room" remarks="合同与房间关联">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="contract_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="room_id" type="BIGINT"
+        remarks="引用 asset 模块的房间 ID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+        remarks="ACTIVE（房间在合同中）| RELEASED（房间已释放）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="shared_account_id" type="BIGINT"
+        remarks="ROOM_SHARED 水电账户 ID（合同激活时创建）"/>
+      <column name="allocated_at" type="DATETIME(3)"
+        remarks="分配时间"/>
+      <column name="released_at" type="DATETIME(3)"
+        remarks="释放时间"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- 查询合同下所有房间 -->
+    <createIndex tableName="contract_room" indexName="idx_contract_room_contract_id">
+      <column name="contract_id"/>
+      <column name="status"/>
+    </createIndex>
+
+    <!-- 查询房间当前所属合同（防重分配：应用层检查 ACTIVE 状态） -->
+    <createIndex tableName="contract_room" indexName="idx_contract_room_room_id">
+      <column name="room_id"/>
+      <column name="status"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       tenancy — 员工入住记录
+       ─────────────────────────────────────────
+       设计说明：
+         - 代表"某员工在某合同房间下的入住关系"
+         - iam_user_id：入住成功后由 IAM 模块创建，退宿后软删除
+         - tenant_account_id：入住时开户，退宿结算完成后关闭
+         - 一人同时只能有一条 CHECKED_IN/PENDING/CHECKING_OUT 状态的记录（应用层校验）
+         - room_id 冗余存储，方便 meter 日结查询当前入住人
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="006-tenancy" author="dev">
+    <createTable tableName="tenancy" remarks="员工入住记录">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="contract_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="contract_room_id" type="BIGINT"
+        remarks="关联 contract_room.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="room_id" type="BIGINT"
+        remarks="冗余，直接引用房间 ID，加速日结查询">
+        <constraints nullable="false"/>
+      </column>
+      <column name="employee_id" type="BIGINT"
+        remarks="引用 enterprise 模块的员工 ID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="iam_user_id" type="BIGINT"
+        remarks="对应 IAM TENANT 用户 ID（入住后创建）"/>
+      <column name="tenant_account_id" type="BIGINT"
+        remarks="个人水电账户 ID（入住时开户）"/>
+      <column name="status" type="VARCHAR(20)" defaultValue="PENDING"
+        remarks="PENDING | CHECKED_IN | CHECKING_OUT | CHECKED_OUT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="check_in_at" type="DATETIME(3)"
+        remarks="实际入住时间"/>
+      <column name="check_out_at" type="DATETIME(3)"
+        remarks="实际退宿时间"/>
+      <column name="expected_check_out_at" type="DATE"
+        remarks="预计退宿日期（用于提醒）"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="tenancy" indexName="idx_tenancy_contract_id">
+      <column name="contract_id"/>
+    </createIndex>
+
+    <!-- meter 日结用：查询房间当前所有 CHECKED_IN 租客 -->
+    <createIndex tableName="tenancy" indexName="idx_tenancy_room_status">
+      <column name="room_id"/>
+      <column name="status"/>
+    </createIndex>
+
+    <!-- 校验员工是否已有活跃入住 -->
+    <createIndex tableName="tenancy" indexName="idx_tenancy_employee_status">
+      <column name="employee_id"/>
+      <column name="status"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       contract_rent_bill — 合同租金账单跟踪
+       ─────────────────────────────────────────
+       设计说明：
+         - 每一期应生成的租金账单在此追踪（由 schedule 定期检查生成）
+         - bill_id 存 Billing Service 账单 ID
+         - (contract_id, period_start) 唯一，防止重复生成
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="006-contract-rent-bill" author="dev">
+    <createTable tableName="contract_rent_bill" remarks="合同租金账单记录">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="contract_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="bill_id" type="BIGINT"
+        remarks="Billing Service 账单 ID（跨服务存 ID）"/>
+      <column name="period_start" type="DATE"
+        remarks="账单周期起始日">
+        <constraints nullable="false"/>
+      </column>
+      <column name="period_end" type="DATE"
+        remarks="账单周期截止日">
+        <constraints nullable="false"/>
+      </column>
+      <column name="amount" type="DECIMAL(12,2)"
+        remarks="本期租金金额（元）"/>
+      <column name="status" type="VARCHAR(20)"
+        remarks="PENDING（待支付）| PAID（已支付）| OVERDUE（逾期）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="paid_at" type="DATETIME(3)"
+        remarks="支付时间"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- 防重：同一合同同一周期只能有一张租金账单 -->
+    <createIndex tableName="contract_rent_bill"
+      indexName="uq_contract_rent_bill_contract_period" unique="true">
+      <column name="contract_id"/>
+      <column name="period_start"/>
+    </createIndex>
+
+    <!-- schedule 查询：哪些合同需要本日生成账单 -->
+    <createIndex tableName="contract_rent_bill"
+      indexName="idx_contract_rent_bill_status">
+      <column name="status"/>
+      <column name="period_end"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       contract_operation_log — 合同关键操作记录
+       ─────────────────────────────────────────
+       仅记录合同维度的关键状态变更，不替代业务日志。
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="006-contract-operation-log" author="dev">
+    <createTable tableName="contract_operation_log" remarks="合同关键操作记录">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="contract_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action" type="VARCHAR(50)"
+        remarks="操作类型：CREATED|SIGNED|ACTIVATED|TENANT_CHECKED_IN|TENANT_CHECKOUT_INITIATED|TENANT_CHECKED_OUT|TERMINATING|TERMINATED|CANCELLED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="target_id" type="BIGINT"
+        remarks="相关实体 ID（如 tenancy_id），可为空"/>
+      <column name="operator_id" type="BIGINT"
+        remarks="操作者 user_id"/>
+      <column name="note" type="VARCHAR(500)"
+        remarks="操作备注"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="contract_operation_log"
+      indexName="idx_contract_op_log_contract_id">
+      <column name="contract_id"/>
+      <column name="created_at"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         schedule 模块：定时任务执行记录（防重 + 补跑）
+         核心约束：UNIQUE(task_type, scheduled_date)，同日同类型任务只执行一次
+         ========================================================= -->
+
+    <changeSet id="013-schedule-task-log" author="dev">
+        <createTable tableName="schedule_task_log" remarks="定时任务执行记录">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="task_type" type="VARCHAR(50)"
+                remarks="DAILY_METER_SETTLEMENT | CONTRACT_EXPIRY_CHECK">
+                <constraints nullable="false"/>
+            </column>
+            <column name="scheduled_date" type="DATE"
+                remarks="任务处理的业务日期（非执行时间），是防重幂等键之一">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)"
+                remarks="RUNNING | SUCCESS | PARTIAL_FAILURE | FAILED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="triggered_by" type="VARCHAR(20)" defaultValue="CRON"
+                remarks="CRON | MANUAL"/>
+            <column name="total_count" type="INT" defaultValueNumeric="0"/>
+            <column name="success_count" type="INT" defaultValueNumeric="0"/>
+            <column name="failure_count" type="INT" defaultValueNumeric="0"/>
+            <column name="error_summary" type="VARCHAR(2000)"
+                remarks="错误摘要（精简描述），详细日志走日志系统"/>
+            <column name="started_at" type="DATETIME(3)"/>
+            <column name="finished_at" type="DATETIME(3)"/>
+            <column name="created_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- 核心防重约束 -->
+        <createIndex tableName="schedule_task_log"
+            indexName="uq_stl_type_date" unique="true">
+            <column name="task_type"/>
+            <column name="scheduled_date"/>
+        </createIndex>
+
+        <createIndex tableName="schedule_task_log" indexName="idx_stl_status_date">
+            <column name="status"/>
+            <column name="scheduled_date"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

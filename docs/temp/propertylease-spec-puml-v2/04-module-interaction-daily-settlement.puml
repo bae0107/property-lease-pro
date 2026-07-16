@@ -1,0 +1,24 @@
+@startuml
+title Daily Settlement and Room Account Deduction
+
+participant Scheduler
+participant Metering
+participant Asset
+participant Occupancy
+participant Accounting
+
+Scheduler -> Metering : runDailySettlement(settlementDate)
+Metering -> Asset : load active room-device bindings
+Metering -> Occupancy : load checked-in stays for date
+Metering -> Metering : compute room daily usage
+Metering -> Metering : compute room daily charge
+Metering -> Metering : split charge
+1) enterprise-covered part
+2) tenant-apportioned part
+Metering -> Accounting : deductRoomAccountForDailySettlement(plan)
+Accounting -> Accounting : deduct enterprise sub-balance first
+Accounting -> Accounting : deduct tenant sub-balances next
+Accounting -> Accounting : record insufficient items if needed
+Accounting --> Metering : deductionResult
+Metering --> Scheduler : settlementCompleted
+@enduml

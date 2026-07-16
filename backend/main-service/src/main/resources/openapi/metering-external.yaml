@@ -1,0 +1,535 @@
+openapi: 3.0.3
+info:
+  title: Main Service API — Metering Module
+  version: 1.0.0
+  description: |
+    水电计量管理：设备绑定、读数管理、单价管理、日结记录查询。
+    权限格式：metering:{resource}:{action}
+servers:
+  - url: /
+tags:
+  - name: metering-bindings
+    description: 设备绑定版本管理
+  - name: metering-readings
+    description: 抄表读数管理
+  - name: metering-prices
+    description: 计费单价管理
+  - name: metering-daily-charges
+    description: 房间日费用查询
+
+paths:
+
+  # ═══════════════════════════════════════════
+  # 设备绑定管理
+  # ═══════════════════════════════════════════
+
+  /metering/rooms/{roomId}/bindings:
+    get:
+      tags: [metering-bindings]
+      operationId: listRoomDeviceBindings
+      summary: 查询房间的设备绑定列表（含历史版本）
+      x-required-permission: metering:binding:read
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: activeOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: true 时只返回当前有效绑定
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeterDeviceBinding'
+
+    post:
+      tags: [metering-bindings]
+      operationId: bindDevice
+      summary: 绑定/更换设备（自动关闭旧绑定版本）
+      description: |
+        - 若该房间该表类型已有 ACTIVE 绑定，先关闭（binding_end_at = now()）
+        - 新建绑定版本，initial_reading = 新表当前读数
+        - 更换设备不影响房间账户余额和历史流水
+      x-required-permission: metering:binding:write
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BindDeviceRequest'
+      responses:
+        '201':
+          description: 绑定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterDeviceBinding'
+        '400':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /metering/rooms/{roomId}/bindings/{bindingId}/unbind:
+    put:
+      tags: [metering-bindings]
+      operationId: unbindDevice
+      summary: 解绑设备（关闭绑定版本）
+      x-required-permission: metering:binding:write
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: bindingId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 解绑成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterDeviceBinding'
+
+  # ═══════════════════════════════════════════
+  # 读数管理
+  # ═══════════════════════════════════════════
+
+  /metering/readings:
+    post:
+      tags: [metering-readings]
+      operationId: submitMeterReading
+      summary: 人工录入抄表读数（PERIODIC 类型）
+      x-required-permission: metering:reading:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitReadingRequest'
+      responses:
+        '201':
+          description: 录入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReading'
+        '400':
+          description: 读数小于历史值 / 设备未绑定
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /metering/readings/query:
+    post:
+      tags: [metering-readings]
+      operationId: queryMeterReadings
+      summary: 分页查询读数记录
+      x-required-permission: metering:reading:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadingQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingPageResult'
+
+  # ═══════════════════════════════════════════
+  # 计费单价管理
+  # ═══════════════════════════════════════════
+
+  /metering/prices:
+    get:
+      tags: [metering-prices]
+      operationId: listMeterPrices
+      summary: 查询计费单价列表（含历史版本）
+      x-required-permission: metering:price:read
+      parameters:
+        - name: storeId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: 门店 ID，不传则返回全局单价
+        - name: meterType
+          in: query
+          schema:
+            type: string
+            enum: [WATER, ELECTRICITY, HOT_WATER]
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeterPriceConfig'
+
+    post:
+      tags: [metering-prices]
+      operationId: createMeterPrice
+      summary: 新增计费单价版本（历史记录保留）
+      description: |
+        - effectiveFrom 不能早于今日
+        - 自动将同 storeId + meterType 的当前有效版本 effective_to 设为 effectiveFrom - 1
+      x-required-permission: metering:price:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeterPriceRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterPriceConfig'
+        '400':
+          description: 日期冲突 / 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  # 日费用查询
+  # ═══════════════════════════════════════════
+
+  /metering/daily-charges/query:
+    post:
+      tags: [metering-daily-charges]
+      operationId: queryRoomDailyCharges
+      summary: 分页查询房间日费用记录
+      x-required-permission: metering:daily-charge:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyChargeQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyChargePageResult'
+
+  /metering/daily-charges/{id}/apportionments:
+    get:
+      tags: [metering-daily-charges]
+      operationId: getDailyChargeApportionments
+      summary: 查询某日费用的租客分摊明细
+      x-required-permission: metering:daily-charge:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantApportionment'
+
+components:
+  schemas:
+
+    BindDeviceRequest:
+      type: object
+      required: [deviceId, meterType, initialReading]
+      properties:
+        deviceId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [WATER, ELECTRICITY, HOT_WATER]
+        initialReading:
+          type: number
+          format: double
+          description: 新表绑定时的当前读数（起始值）
+
+    SubmitReadingRequest:
+      type: object
+      required: [roomId, meterType, readingValue, readingTime]
+      properties:
+        roomId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [WATER, ELECTRICITY, HOT_WATER]
+        readingValue:
+          type: number
+          format: double
+          description: 表盘累计读数（非增量）
+        readingTime:
+          type: string
+          format: date-time
+
+    ReadingQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            roomId:
+              type: integer
+              format: int64
+            meterType:
+              type: string
+              enum: [WATER, ELECTRICITY, HOT_WATER]
+            anchorType:
+              type: string
+              enum: [CHECK_IN, CHECK_OUT, PERIODIC]
+            source:
+              type: string
+              enum: [IOT, MANUAL]
+            startTime:
+              type: string
+              format: date-time
+            endTime:
+              type: string
+              format: date-time
+
+    DailyChargeQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            roomId:
+              type: integer
+              format: int64
+            status:
+              type: string
+              enum: [PENDING, SETTLED, PARTIAL, FAILED]
+            settlementDate:
+              type: string
+              format: date
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    CreateMeterPriceRequest:
+      type: object
+      required: [meterType, unitPrice, effectiveFrom]
+      properties:
+        storeId:
+          type: integer
+          format: int64
+          description: 不填则设置全局默认
+        meterType:
+          type: string
+          enum: [WATER, ELECTRICITY, HOT_WATER]
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0.0001
+        effectiveFrom:
+          type: string
+          format: date
+
+    MeterDeviceBinding:
+      type: object
+      required: [id, roomId, deviceId, meterType, bindingStartAt, isActive]
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        deviceId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [WATER, ELECTRICITY, HOT_WATER]
+        bindingStartAt:
+          type: string
+          format: date-time
+        bindingEndAt:
+          type: string
+          format: date-time
+        initialReading:
+          type: number
+          format: double
+        isActive:
+          type: boolean
+
+    MeterReading:
+      type: object
+      required: [id, roomId, meterType, readingValue, readingTime, source]
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        deviceBindingId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [WATER, ELECTRICITY, HOT_WATER]
+        readingValue:
+          type: number
+          format: double
+        readingTime:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [IOT, MANUAL]
+        anchorType:
+          type: string
+          enum: [CHECK_IN, CHECK_OUT, PERIODIC]
+        stayId:
+          type: integer
+          format: int64
+        readingGroupId:
+          type: string
+
+    MeterPriceConfig:
+      type: object
+      required: [id, meterType, unitPrice, effectiveFrom]
+      properties:
+        id:
+          type: integer
+          format: int64
+        storeId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [WATER, ELECTRICITY, HOT_WATER]
+        unitPrice:
+          type: number
+          format: double
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+
+    RoomDailyCharge:
+      type: object
+      required: [id, roomId, settlementDate, totalAmount, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        settlementDate:
+          type: string
+          format: date
+        waterAmount:
+          type: number
+          format: double
+        electricAmount:
+          type: number
+          format: double
+        hotWaterAmount:
+          type: number
+          format: double
+        totalAmount:
+          type: number
+          format: double
+        status:
+          type: string
+          enum: [PENDING, SETTLED, PARTIAL, FAILED]
+
+    TenantApportionment:
+      type: object
+      required: [id, roomDailyChargeId, tenantId, stayId, apportionedAmount]
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomDailyChargeId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        tenantId:
+          type: integer
+          format: int64
+        stayId:
+          type: integer
+          format: int64
+        settlementDate:
+          type: string
+          format: date
+        apportionedAmount:
+          type: number
+          format: double
+
+    ReadingPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/MeterReading'
+
+    DailyChargePageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/RoomDailyCharge'

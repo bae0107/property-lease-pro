@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: Main Service API - Settlement Module
+  description: |
+    settlement 模块对外接口契约（退宿/退房结算）。
+    x-required-permission 格式：settlement:{resource}:{action}
+  version: 1.0.0
+servers:
+  - url: /
+
+tags:
+  - name: settlement-settlements
+    description: 结算单查询与管理
+
+paths:
+
+  /settlement/settlements/query:
+    post:
+      tags: [ settlement-settlements ]
+      operationId: querySettlements
+      summary: 分页查询结算记录
+      x-required-permission: settlement:settlement:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettlementQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementPageResult'
+
+  /settlement/settlements/{id}:
+    get:
+      tags: [ settlement-settlements ]
+      operationId: getSettlement
+      summary: 结算单详情（含明细）
+      x-required-permission: settlement:settlement:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementDetail'
+        '404':
+          description: 结算单不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /settlement/settlements/{id}/confirm:
+    put:
+      tags: [ settlement-settlements ]
+      operationId: confirmSettlement
+      summary: 人工确认结算完成（异常兜底，仅 FAILED 状态可操作）
+      x-required-permission: settlement:settlement:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmSettlementRequest'
+      responses:
+        '200':
+          description: 人工确认成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementDetail'
+        '400':
+          description: 结算单状态不允许（非 FAILED）
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    SettlementQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            settlementType:
+              type: string
+              enum: [ TENANT_CHECKOUT, CONTRACT_TERMINATION ]
+            referenceId:
+              type: integer
+              format: int64
+              description: tenancy_id 或 contract_id
+            status:
+              type: string
+              enum: [ CALCULATING, PENDING_PAYMENT, COMPLETED, FAILED ]
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    ConfirmSettlementRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 200
+
+    Settlement:
+      type: object
+      required:
+        - id
+        - settlementNo
+        - settlementType
+        - referenceId
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        settlementNo:
+          type: string
+        settlementType:
+          type: string
+          enum: [ TENANT_CHECKOUT, CONTRACT_TERMINATION ]
+        referenceId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [ CALCULATING, PENDING_PAYMENT, COMPLETED, FAILED ]
+        waterOutstanding:
+          type: number
+          format: double
+          description: 水费欠费（0 表示无欠费）
+        electricityOutstanding:
+          type: number
+          format: double
+          description: 电费欠费
+        accountSurplus:
+          type: number
+          format: double
+          description: 账户剩余退款
+        depositDeduction:
+          type: number
+          format: double
+          description: 押金抵扣金额（合同退房时）
+        depositRefund:
+          type: number
+          format: double
+          description: 押金应退金额（合同退房时）
+        settlementBillId:
+          type: integer
+          format: int64
+          description: 追缴账单 ID（有欠费时生成）
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    SettlementItem:
+      type: object
+      required:
+        - id
+        - settlementId
+        - itemType
+        - amount
+        - direction
+      properties:
+        id:
+          type: integer
+          format: int64
+        settlementId:
+          type: integer
+          format: int64
+        itemType:
+          type: string
+          enum: [ WATER_ELECTRIC_OUTSTANDING, ACCOUNT_SURPLUS, DEPOSIT_DEDUCTION, DEPOSIT_REFUND ]
+        description:
+          type: string
+        amount:
+          type: number
+          format: double
+        direction:
+          type: string
+          enum: [ CHARGE, REFUND ]
+
+    SettlementDetail:
+      allOf:
+        - $ref: '#/components/schemas/Settlement'
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/SettlementItem'
+
+    SettlementPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [ items ]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Settlement'

@@ -5,7 +5,7 @@ spring:
       password: user
   # H2 内存数据库配置
   datasource:
-    url: jdbc:h2:file:D:/h2data/PROPERTY_LEASE_MAIN;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;TIME ZONE=Asia/Shanghai
+    url: jdbc:h2:file:D:/h2data_gihub/PROPERTY_LEASE_MAIN;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;TIME ZONE=Asia/Shanghai
     driver-class-name: org.h2.Driver
     username: sa
     password: sa

@@ -1,0 +1,11 @@
+@startuml
+title RoomAssignment State Machine
+
+[*] --> ASSIGNED : assignTenantToRoom
+
+ASSIGNED --> CONSUMED : check-in consumes assignment
+ASSIGNED --> CANCELLED : cancelAssignment
+
+CONSUMED --> [*]
+CANCELLED --> [*]
+@enduml

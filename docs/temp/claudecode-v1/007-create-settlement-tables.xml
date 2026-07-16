@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <!-- ═══════════════════════════════════════════
+       settlement — 结算单主表
+       ─────────────────────────────────────────
+       设计说明：
+         - 个人退宿（TENANT_CHECKOUT）：reference_id = tenancy_id
+         - 合同退房（CONTRACT_TERMINATION）：reference_id = contract_id
+         - 状态 PENDING_PAYMENT：有欠费，已生成追缴账单，等待支付
+         - 状态 COMPLETED：结算完毕（含无欠费直接完成的情况）
+         - settlement_bill_id：追缴账单（有欠费时生成），存 Billing Service 账单 ID
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="007-settlement" author="dev">
+    <createTable tableName="settlement" remarks="结算单">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="settlement_no" type="VARCHAR(32)"
+        remarks="结算编号，格式：STL-{yyyyMM}-{seq}，全局唯一">
+        <constraints unique="true" nullable="false"/>
+      </column>
+      <column name="settlement_type" type="VARCHAR(30)"
+        remarks="TENANT_CHECKOUT | CONTRACT_TERMINATION">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reference_id" type="BIGINT"
+        remarks="tenancy_id（TENANT_CHECKOUT）或 contract_id（CONTRACT_TERMINATION）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(20)"
+        remarks="CALCULATING | PENDING_PAYMENT | COMPLETED | FAILED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="water_outstanding" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="水费欠费（meter 日结遗留）"/>
+      <column name="electricity_outstanding" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="电费欠费（meter 日结遗留）"/>
+      <column name="account_surplus" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="账户剩余余额（应退还）"/>
+      <column name="deposit_deduction" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="押金抵扣金额（CONTRACT_TERMINATION 时使用）"/>
+      <column name="deposit_refund" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="押金应退金额（CONTRACT_TERMINATION 时使用）"/>
+      <column name="settlement_bill_id" type="BIGINT"
+        remarks="追缴账单 ID（有欠费时由 Billing Service 生成）"/>
+      <column name="completed_at" type="DATETIME(3)"
+        remarks="结算完成时间"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- 查询某 tenancy/contract 的结算记录 -->
+    <createIndex tableName="settlement"
+      indexName="idx_settlement_type_reference">
+      <column name="settlement_type"/>
+      <column name="reference_id"/>
+    </createIndex>
+
+    <createIndex tableName="settlement" indexName="idx_settlement_status">
+      <column name="status"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       settlement_item — 结算明细
+       ─────────────────────────────────────────
+       每笔结算拆分为多条明细，便于对账和展示。
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="007-settlement-item" author="dev">
+    <createTable tableName="settlement_item" remarks="结算明细">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="settlement_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="item_type" type="VARCHAR(30)"
+        remarks="WATER_ELECTRIC_OUTSTANDING | ACCOUNT_SURPLUS | DEPOSIT_DEDUCTION | DEPOSIT_REFUND">
+        <constraints nullable="false"/>
+      </column>
+      <column name="description" type="VARCHAR(200)"
+        remarks="明细说明（如：入住期间水费欠款）"/>
+      <column name="amount" type="DECIMAL(12,2)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="direction" type="VARCHAR(10)"
+        remarks="CHARGE（向租客收费）| REFUND（退还给租客）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="settlement_item"
+      indexName="idx_settlement_item_settlement_id">
+      <column name="settlement_id"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

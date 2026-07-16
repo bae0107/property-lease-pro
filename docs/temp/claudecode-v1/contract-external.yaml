@@ -1,0 +1,831 @@
+openapi: 3.0.3
+info:
+  title: Main Service API - Contract Module
+  description: |
+    contract 模块对外接口契约（合同生命周期 + 入住管理）。
+
+    权限规则：
+    - 所有接口需要有效 Service JWT
+    - x-required-permission 格式：contract:{resource}:{action}
+  version: 1.0.0
+servers:
+  - url: /
+
+tags:
+  - name: contract-contracts
+    description: 合同管理（CRUD、状态流转）
+  - name: contract-rooms
+    description: 合同房间分配管理
+  - name: contract-tenancies
+    description: 入住记录管理（员工入住/退宿）
+
+paths:
+
+  # ═══════════════════════════════════════════
+  # 合同管理
+  # ═══════════════════════════════════════════
+
+  /contract/contracts:
+    post:
+      tags: [ contract-contracts ]
+      operationId: createContract
+      summary: 创建合同（初始状态 DRAFT）
+      x-required-permission: contract:contract:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContractRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 企业不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/query:
+    post:
+      tags: [ contract-contracts ]
+      operationId: queryContracts
+      summary: 分页查询合同列表
+      x-required-permission: contract:contract:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractPageResult'
+
+  /contract/contracts/{id}:
+    get:
+      tags: [ contract-contracts ]
+      operationId: getContract
+      summary: 合同详情（含房间列表、账单状态）
+      x-required-permission: contract:contract:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '404':
+          description: 合同不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/sign:
+    put:
+      tags: [ contract-contracts ]
+      operationId: signContract
+      summary: 确认签约（DRAFT → SIGNED），生成押金账单
+      x-required-permission: contract:contract:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignContractRequest'
+      responses:
+        '200':
+          description: 签约成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 合同状态不允许此操作
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 合同不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/activate:
+    put:
+      tags: [ contract-contracts ]
+      operationId: activateContract
+      summary: 手动激活合同（SIGNED → READY_FOR_ALLOCATION）
+      description: |
+        押金支付完成后可通过此接口手动激活。
+        押金账单支付成功后也会通过内部回调自动激活。
+        激活时为每个 contractRoom 创建 ROOM_SHARED 水电账户。
+      x-required-permission: contract:contract:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 激活成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 合同状态不允许 / 押金账单未支付
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/cancel:
+    put:
+      tags: [ contract-contracts ]
+      operationId: cancelContract
+      summary: 取消合同（仅 DRAFT / SIGNED 状态可取消）
+      x-required-permission: contract:contract:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelContractRequest'
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 合同状态不允许取消（已有入住或已激活）
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/terminate:
+    put:
+      tags: [ contract-contracts ]
+      operationId: terminateContract
+      summary: 发起合同退房（IN_PROGRESS → TERMINATING）
+      description: |
+        发起后禁止新增 tenancy。
+        等所有 tenancy 退宿且结算完成后自动流转至 TERMINATED。
+      x-required-permission: contract:contract:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminateContractRequest'
+      responses:
+        '200':
+          description: 退房流程已发起
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 合同状态不允许
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  # 合同-房间管理
+  # ═══════════════════════════════════════════
+
+  /contract/contracts/{id}/rooms:
+    post:
+      tags: [ contract-rooms ]
+      operationId: addRoomsToContract
+      summary: 为合同分配房间（支持批量）
+      description: |
+        合同处于 DRAFT / SIGNED / READY_FOR_ALLOCATION / IN_PROGRESS 时可添加。
+        房间必须处于 AVAILABLE 状态。
+      x-required-permission: contract:room:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddRoomsRequest'
+      responses:
+        '200':
+          description: 分配成功，返回更新后合同详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 房间已被占用 / 合同状态不允许
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 合同或房间不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/contracts/{id}/rooms/batch-remove:
+    post:
+      tags: [ contract-rooms ]
+      operationId: removeRoomsFromContract
+      summary: 从合同移除房间（仅该房间无活跃 tenancy 时可操作）
+      x-required-permission: contract:room:write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveRoomsRequest'
+      responses:
+        '200':
+          description: 移除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractDetail'
+        '400':
+          description: 房间存在活跃 tenancy，不可移除
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  # 入住管理
+  # ═══════════════════════════════════════════
+
+  /contract/tenancies:
+    post:
+      tags: [ contract-tenancies ]
+      operationId: checkIn
+      summary: 办理员工入住（触发完整入住编排流程）
+      description: |
+        编排流程：
+        1. 更新房间状态
+        2. 创建 IAM TENANT 用户
+        3. 记录入住水电底数
+        4. 创建个人水电账户
+        5. 持久化 tenancy（CHECKED_IN）
+        整体事务，任一步骤失败则全部回滚。
+      x-required-permission: contract:tenancy:checkin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '201':
+          description: 入住成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenancyDetail'
+        '400':
+          description: 参数校验失败 / 员工不属于该企业 / 房间已满 / 员工已有入住
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 合同 / 房间 / 员工不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/tenancies/query:
+    post:
+      tags: [ contract-tenancies ]
+      operationId: queryTenancies
+      summary: 分页查询入住记录
+      x-required-permission: contract:tenancy:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenancyQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenancyPageResult'
+
+  /contract/tenancies/{id}:
+    get:
+      tags: [ contract-tenancies ]
+      operationId: getTenancy
+      summary: 入住记录详情
+      x-required-permission: contract:tenancy:read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenancyDetail'
+        '404':
+          description: 入住记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /contract/tenancies/{id}/checkout:
+    put:
+      tags: [ contract-tenancies ]
+      operationId: initiateCheckout
+      summary: 发起员工退宿（CHECKED_IN → CHECKING_OUT，触发结算流程）
+      description: |
+        记录退宿水电读数并发起异步结算。
+        结算完成后由 Settlement 回调更新状态至 CHECKED_OUT，并清理 IAM 用户。
+      x-required-permission: contract:tenancy:checkout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '200':
+          description: 退宿流程已发起，结算异步进行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenancyDetail'
+        '400':
+          description: 入住记录状态不允许退宿
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: 入住记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    # ── 合同请求 ──────────────────────────────────────────────────
+
+    CreateContractRequest:
+      type: object
+      required:
+        - enterpriseId
+        - startDate
+        - endDate
+        - monthlyRent
+        - paymentCycle
+        - depositAmount
+      properties:
+        enterpriseId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        monthlyRent:
+          type: number
+          format: double
+          minimum: 0.01
+        paymentCycle:
+          type: string
+          enum: [ MONTHLY, QUARTERLY ]
+          default: MONTHLY
+        depositAmount:
+          type: number
+          format: double
+          minimum: 0
+        termsDocUrl:
+          type: string
+          description: 合同附件 URL（可选，签约后上传）
+
+    SignContractRequest:
+      type: object
+      properties:
+        termsDocUrl:
+          type: string
+          description: 合同附件 URL（签约时必须上传）
+          nullable: false
+
+    CancelContractRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 200
+
+    TerminateContractRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 200
+
+    ContractQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            enterpriseId:
+              type: integer
+              format: int64
+            status:
+              type: string
+              enum: [ DRAFT, SIGNED, READY_FOR_ALLOCATION, IN_PROGRESS, TERMINATING, TERMINATED, CANCELLED ]
+            startDateFrom:
+              type: string
+              format: date
+            startDateTo:
+              type: string
+              format: date
+            endDateFrom:
+              type: string
+              format: date
+            endDateTo:
+              type: string
+              format: date
+
+    # ── 房间管理请求 ──────────────────────────────────────────────
+
+    AddRoomsRequest:
+      type: object
+      required:
+        - roomIds
+      properties:
+        roomIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+
+    RemoveRoomsRequest:
+      type: object
+      required:
+        - roomIds
+      properties:
+        roomIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+
+    # ── 入住请求 ──────────────────────────────────────────────────
+
+    CheckInRequest:
+      type: object
+      required:
+        - contractId
+        - roomId
+        - employeeId
+        - checkInWaterReading
+        - checkInElectricityReading
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        employeeId:
+          type: integer
+          format: int64
+        expectedCheckOutDate:
+          type: string
+          format: date
+          description: 预计退宿日期（可选，用于提醒）
+        checkInWaterReading:
+          type: number
+          format: double
+          description: 入住时水表底数
+        checkInElectricityReading:
+          type: number
+          format: double
+          description: 入住时电表底数
+
+    CheckoutRequest:
+      type: object
+      required:
+        - checkOutWaterReading
+        - checkOutElectricityReading
+      properties:
+        checkOutWaterReading:
+          type: number
+          format: double
+          description: 退宿时水表读数
+        checkOutElectricityReading:
+          type: number
+          format: double
+          description: 退宿时电表读数
+
+    TenancyQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            contractId:
+              type: integer
+              format: int64
+            roomId:
+              type: integer
+              format: int64
+            employeeId:
+              type: integer
+              format: int64
+            status:
+              type: string
+              enum: [ PENDING, CHECKED_IN, CHECKING_OUT, CHECKED_OUT ]
+
+    # ── 业务对象 ──────────────────────────────────────────────────
+
+    Contract:
+      type: object
+      required:
+        - id
+        - contractNo
+        - enterpriseId
+        - status
+        - startDate
+        - endDate
+        - monthlyRent
+        - paymentCycle
+        - depositAmount
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        contractNo:
+          type: string
+        enterpriseId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [ DRAFT, SIGNED, READY_FOR_ALLOCATION, IN_PROGRESS, TERMINATING, TERMINATED, CANCELLED ]
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        monthlyRent:
+          type: number
+          format: double
+        paymentCycle:
+          type: string
+          enum: [ MONTHLY, QUARTERLY ]
+        depositAmount:
+          type: number
+          format: double
+        depositBillId:
+          type: integer
+          format: int64
+        termsDocUrl:
+          type: string
+        cancelReason:
+          type: string
+        terminateReason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ContractRoom:
+      type: object
+      required:
+        - id
+        - contractId
+        - roomId
+        - status
+      properties:
+        id:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [ ACTIVE, RELEASED ]
+        sharedAccountId:
+          type: integer
+          format: int64
+        allocatedAt:
+          type: string
+          format: date-time
+        releasedAt:
+          type: string
+          format: date-time
+        activeTenancyCount:
+          type: integer
+          description: 当前活跃入住人数（CHECKED_IN 状态）
+
+    ContractDetail:
+      allOf:
+        - $ref: '#/components/schemas/Contract'
+        - type: object
+          required:
+            - rooms
+          properties:
+            rooms:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContractRoom'
+
+    Tenancy:
+      type: object
+      required:
+        - id
+        - contractId
+        - contractRoomId
+        - roomId
+        - employeeId
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        contractRoomId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        employeeId:
+          type: integer
+          format: int64
+        iamUserId:
+          type: integer
+          format: int64
+        tenantAccountId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [ PENDING, CHECKED_IN, CHECKING_OUT, CHECKED_OUT ]
+        checkInAt:
+          type: string
+          format: date-time
+        checkOutAt:
+          type: string
+          format: date-time
+        expectedCheckOutAt:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+
+    TenancyDetail:
+      allOf:
+        - $ref: '#/components/schemas/Tenancy'
+        - type: object
+          properties:
+            accountBalance:
+              type: number
+              format: double
+              description: 个人水电账户当前余额（CHECKED_IN 时有值）
+            waterUsage:
+              type: number
+              format: double
+              description: 入住至今用水量
+            electricityUsage:
+              type: number
+              format: double
+              description: 入住至今用电量
+
+    # ── 分页结果 ──────────────────────────────────────────────────
+
+    ContractPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [ items ]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Contract'
+
+    TenancyPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [ items ]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Tenancy'

@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         metering 模块：设备绑定、读数记录、计费单价、结算锚点、日费用、分摊
+         ========================================================= -->
+
+    <changeSet id="012-meter-device-binding" author="dev">
+        <createTable tableName="meter_device_binding" remarks="计量设备绑定（版本化，支持换绑历史）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT" remarks="room_info.RoomId">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_id" type="BIGINT"
+                remarks="device-service 设备 ID（stub 阶段可为任意值）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="meter_type" type="VARCHAR(20)"
+                remarks="WATER | ELECTRICITY | HOT_WATER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="binding_start_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="binding_end_at" type="DATETIME(3)"
+                remarks="NULL = 当前有效版本"/>
+            <column name="initial_reading" type="DECIMAL(12,3)"
+                remarks="新绑定时的起始表盘读数（设备换绑时用于计算增量起点）"/>
+            <column name="is_active" type="TINYINT(1)" defaultValueNumeric="1"
+                remarks="1=当前有效，0=已关闭"/>
+            <column name="created_by" type="BIGINT"/>
+            <column name="created_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="meter_device_binding" indexName="idx_mdb_room_active">
+            <column name="room_id"/>
+            <column name="is_active"/>
+            <column name="meter_type"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="012-meter-reading" author="dev">
+        <createTable tableName="meter_reading" remarks="水电表读数记录">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="device_binding_id" type="BIGINT"
+                remarks="meter_device_binding.id（标记读数对应的设备绑定版本）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="meter_type" type="VARCHAR(20)"><constraints nullable="false"/></column>
+            <column name="reading_value" type="DECIMAL(12,3)"
+                remarks="表盘累计读数（非增量）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reading_time" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source" type="VARCHAR(20)" remarks="IOT | MANUAL"/>
+            <column name="anchor_type" type="VARCHAR(20)"
+                remarks="CHECK_IN | CHECK_OUT | PERIODIC | NULL（普通读数）"/>
+            <column name="stay_id" type="BIGINT"
+                remarks="CHECK_IN / CHECK_OUT 时关联的 stay.id"/>
+            <column name="reading_group_id" type="VARCHAR(64)"
+                remarks="同一入住/退宿动作的水/电/热水读数共享同一 groupId"/>
+            <column name="device_id_raw" type="VARCHAR(100)"
+                remarks="IoT 设备原始标识（幂等键：device_id_raw + reading_time 唯一）"/>
+            <column name="operator_id" type="BIGINT" remarks="人工录入时填"/>
+            <column name="created_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="meter_reading" indexName="idx_mr_room_type_time">
+            <column name="room_id"/>
+            <column name="meter_type"/>
+            <column name="reading_time"/>
+        </createIndex>
+        <createIndex tableName="meter_reading" indexName="idx_mr_stay_anchor">
+            <column name="stay_id"/>
+            <column name="anchor_type"/>
+        </createIndex>
+        <!-- IoT 幂等约束 -->
+        <createIndex tableName="meter_reading"
+            indexName="uq_mr_device_time" unique="true">
+            <column name="device_id_raw"/>
+            <column name="reading_time"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="012-meter-price-config" author="dev">
+        <createTable tableName="meter_price_config" remarks="水电计费单价（版本化，按门店或全局配置）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="store_id" type="BIGINT"
+                remarks="门店 ID，NULL = 全局默认（优先查门店级别）"/>
+            <column name="meter_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="unit_price" type="DECIMAL(10,4)"
+                remarks="元/度 或 元/吨">
+                <constraints nullable="false"/>
+            </column>
+            <column name="effective_from" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="effective_to" type="DATE"
+                remarks="NULL = 当前有效版本"/>
+            <column name="created_by" type="BIGINT"/>
+            <column name="created_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="meter_price_config" indexName="idx_mpc_store_type">
+            <column name="store_id"/>
+            <column name="meter_type"/>
+            <column name="effective_from"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="012-settlement-anchor" author="dev">
+        <createTable tableName="settlement_anchor" remarks="结算锚点（入住/退宿/每日关表时刻的读数标记）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="stay_id" type="BIGINT"
+                remarks="CHECK_IN / CHECK_OUT 时关联"/>
+            <column name="anchor_type" type="VARCHAR(20)"
+                remarks="CHECK_IN | DAILY_CLOSING | CHECK_OUT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reading_group_id" type="VARCHAR(64)"
+                remarks="与 meter_reading.reading_group_id 关联，标识本次锚点所有表计读数"/>
+            <column name="anchor_time" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME(3)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="settlement_anchor" indexName="idx_sa_room_type_time">
+            <column name="room_id"/>
+            <column name="anchor_type"/>
+            <column name="anchor_time"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="012-room-daily-charge" author="dev">
+        <createTable tableName="room_daily_charge"
+            remarks="房间日费用（日结产出，只写不改，幂等靠唯一约束）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="settlement_date" type="DATE"><constraints nullable="false"/></column>
+            <column name="water_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+            <column name="electric_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+            <column name="hot_water_amount" type="DECIMAL(12,2)" defaultValueNumeric="0"/>
+            <column name="total_amount" type="DECIMAL(12,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)"
+                remarks="PENDING | SETTLED | PARTIAL | FAILED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+        <!-- 幂等唯一约束：同一房间同一日期只有一条日结记录 -->
+        <createIndex tableName="room_daily_charge"
+            indexName="uq_rdc_room_date" unique="true">
+            <column name="room_id"/>
+            <column name="settlement_date"/>
+        </createIndex>
+        <createIndex tableName="room_daily_charge" indexName="idx_rdc_date_status">
+            <column name="settlement_date"/>
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="012-tenant-apportionment" author="dev">
+        <createTable tableName="tenant_apportionment"
+            remarks="租客日结分摊明细（日结产出，与 room_daily_charge 1:N）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_daily_charge_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="tenant_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="stay_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="settlement_date" type="DATE"><constraints nullable="false"/></column>
+            <column name="apportioned_amount" type="DECIMAL(12,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+        <createIndex tableName="tenant_apportionment" indexName="idx_ta_charge_id">
+            <column name="room_daily_charge_id"/>
+        </createIndex>
+        <createIndex tableName="tenant_apportionment" indexName="idx_ta_stay_date">
+            <column name="stay_id"/>
+            <column name="settlement_date"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

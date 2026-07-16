@@ -1,0 +1,428 @@
+openapi: 3.0.3
+info:
+  title: Main Service API - Meter Module
+  description: |
+    meter 模块对外接口契约（水电抄表与日结）。
+
+    权限规则：
+    - 所有接口需要有效 Service JWT
+    - x-required-permission 格式：meter:{resource}:{action}
+  version: 1.0.0
+servers:
+  - url: /
+
+tags:
+  - name: meter-readings
+    description: 抄表记录管理（人工录入、查询）
+  - name: meter-settlements
+    description: 水电日结记录查询
+  - name: meter-prices
+    description: 计费单价管理
+
+paths:
+
+  /meter/readings:
+    post:
+      tags: [ meter-readings ]
+      operationId: submitMeterReading
+      summary: 人工录入抄表读数
+      x-required-permission: meter:reading:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitReadingRequest'
+      responses:
+        '201':
+          description: 录入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReading'
+        '400':
+          description: 参数校验失败 / 读数小于历史读数
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /meter/readings/query:
+    post:
+      tags: [ meter-readings ]
+      operationId: queryMeterReadings
+      summary: 分页查询抄表记录
+      x-required-permission: meter:reading:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterReadingQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReadingPageResult'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /meter/settlements/query:
+    post:
+      tags: [ meter-settlements ]
+      operationId: queryMeterSettlements
+      summary: 分页查询水电日结记录
+      x-required-permission: meter:settlement:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterSettlementQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterSettlementPageResult'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /meter/prices:
+    get:
+      tags: [ meter-prices ]
+      operationId: listMeterPrices
+      summary: 查询计费单价列表（含历史版本）
+      x-required-permission: meter:price:read
+      parameters:
+        - name: storeId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: 门店 ID，不传则返回全局单价
+        - name: meterType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ WATER, ELECTRICITY ]
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeterPriceConfig'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [ meter-prices ]
+      operationId: createMeterPrice
+      summary: 新增计费单价（新版本生效，历史记录保留）
+      x-required-permission: meter:price:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeterPriceRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterPriceConfig'
+        '400':
+          description: 参数校验失败 / 与现有版本日期冲突
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    # ── 查询请求 ──────────────────────────────────────────────────
+
+    MeterReadingQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            roomId:
+              type: integer
+              format: int64
+            meterType:
+              type: string
+              enum: [ WATER, ELECTRICITY ]
+            category:
+              type: string
+              enum: [ CHECK_IN, CHECK_OUT, PERIODIC ]
+            source:
+              type: string
+              enum: [ IOT, MANUAL ]
+            tenancyId:
+              type: integer
+              format: int64
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    MeterSettlementQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            roomId:
+              type: integer
+              format: int64
+            meterType:
+              type: string
+              enum: [ WATER, ELECTRICITY ]
+            status:
+              type: string
+              enum: [ PENDING, SETTLED, PARTIAL, FAILED ]
+            settlementDate:
+              type: string
+              format: date
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    # ── 提交读数 ──────────────────────────────────────────────────
+
+    SubmitReadingRequest:
+      type: object
+      required:
+        - roomId
+        - meterType
+        - readingValue
+        - readAt
+      properties:
+        roomId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [ WATER, ELECTRICITY ]
+        readingValue:
+          type: number
+          format: double
+          description: 表盘累计读数（非增量）
+        readAt:
+          type: string
+          format: date-time
+          description: 实际抄表时间
+
+    # ── 业务对象 ──────────────────────────────────────────────────
+
+    MeterReading:
+      type: object
+      required:
+        - id
+        - roomId
+        - meterType
+        - readingValue
+        - readAt
+        - source
+        - category
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [ WATER, ELECTRICITY ]
+        readingValue:
+          type: number
+          format: double
+        readAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [ IOT, MANUAL ]
+        category:
+          type: string
+          enum: [ CHECK_IN, CHECK_OUT, PERIODIC ]
+        tenancyId:
+          type: integer
+          format: int64
+        operatorId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+
+    MeterDailySettlement:
+      type: object
+      required:
+        - id
+        - roomId
+        - settlementDate
+        - meterType
+        - usage
+        - totalAmount
+        - status
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        settlementDate:
+          type: string
+          format: date
+        meterType:
+          type: string
+          enum: [ WATER, ELECTRICITY ]
+        startReading:
+          type: number
+          format: double
+        endReading:
+          type: number
+          format: double
+        usage:
+          type: number
+          format: double
+        unitPrice:
+          type: number
+          format: double
+        totalAmount:
+          type: number
+          format: double
+        deductedFromShared:
+          type: number
+          format: double
+        deductedFromTenants:
+          type: number
+          format: double
+        shortfall:
+          type: number
+          format: double
+          description: 欠费金额（0 表示已全额扣款）
+        status:
+          type: string
+          enum: [ PENDING, SETTLED, PARTIAL, FAILED ]
+
+    MeterPriceConfig:
+      type: object
+      required:
+        - id
+        - meterType
+        - unitPrice
+        - effectiveFrom
+      properties:
+        id:
+          type: integer
+          format: int64
+        storeId:
+          type: integer
+          format: int64
+          description: 门店 ID，null 表示全局默认
+        meterType:
+          type: string
+          enum: [ WATER, ELECTRICITY ]
+        unitPrice:
+          type: number
+          format: double
+          description: 元/度 或 元/吨
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+          description: null 表示当前有效版本
+
+    CreateMeterPriceRequest:
+      type: object
+      required:
+        - meterType
+        - unitPrice
+        - effectiveFrom
+      properties:
+        storeId:
+          type: integer
+          format: int64
+          description: 门店 ID，不填则设置全局默认
+        meterType:
+          type: string
+          enum: [ WATER, ELECTRICITY ]
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0.0001
+        effectiveFrom:
+          type: string
+          format: date
+          description: 生效日期（不能早于今日）
+
+    # ── 分页结果 ──────────────────────────────────────────────────
+
+    MeterReadingPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [ items ]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/MeterReading'
+
+    MeterSettlementPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [ items ]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/MeterDailySettlement'

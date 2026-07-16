@@ -1,0 +1,35 @@
+@startuml
+title Contract Lifecycle Interaction
+
+actor STAFF
+participant Contract
+participant Asset
+participant Customer
+participant Accounting
+participant Payment
+
+STAFF -> Contract : createContractDraft()
+Contract -> Asset : validate room exists / capacity / device ready
+Contract -> Customer : validate enterprise exists
+Contract --> STAFF : draftCreated
+
+STAFF -> Contract : confirmContract()
+Contract -> Asset : lock contract rooms
+Contract -> Accounting : createEnterpriseSignBill(first rent + enterprise deposit)
+Accounting --> Contract : enterpriseSignBillCreated
+Contract --> STAFF : contractStatus=SIGN_BILL_PENDING
+
+STAFF -> Contract : cancelContract()
+alt status in {DRAFT, SIGN_BILL_PENDING}
+  Contract -> Asset : release locked rooms if locked
+  Contract -> Accounting : cancel unpaid bills if exist
+  Contract --> STAFF : contractStatus=CANCELLED
+else not allowed
+  Contract --> STAFF : reject
+end
+
+STAFF -> Payment : pay enterprise sign bill
+Payment -> Accounting : confirm sign bill paid
+Accounting -> Contract : activateContractAfterSignBillPaid()
+Contract --> STAFF : contractStatus=READY_FOR_CHECK_IN
+@enduml

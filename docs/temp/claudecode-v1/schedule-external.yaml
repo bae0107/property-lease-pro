@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Main Service API - Schedule Module
+  description: |
+    schedule 模块对外接口契约（周期任务调度）。
+    x-required-permission 格式：schedule:{resource}:{action}
+  version: 1.0.0
+servers:
+  - url: /
+
+tags:
+  - name: schedule-tasks
+    description: 定时任务管理（手动触发、执行历史查询）
+
+paths:
+
+  /schedule/tasks/{taskType}/trigger:
+    post:
+      tags: [ schedule-tasks ]
+      operationId: triggerTask
+      summary: 人工手动触发任务（运维补跑）
+      x-required-permission: schedule:task:trigger
+      parameters:
+        - name: taskType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [ DAILY_METER_SETTLEMENT, RENT_BILL_CHECK, CONTRACT_EXPIRY_CHECK ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerTaskRequest'
+      responses:
+        '200':
+          description: 任务已触发（异步执行）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskTriggerResult'
+        '400':
+          description: 任务已在当日执行成功（需 force=true 强制重跑）
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /schedule/tasks/query:
+    post:
+      tags: [ schedule-tasks ]
+      operationId: queryTaskLogs
+      summary: 查询任务执行历史
+      x-required-permission: schedule:task:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskLogQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskLogPageResult'
+
+components:
+  schemas:
+
+    TriggerTaskRequest:
+      type: object
+      properties:
+        targetDate:
+          type: string
+          format: date
+          description: 业务日期（不填默认昨日）
+        force:
+          type: boolean
+          default: false
+          description: 当日已执行成功时，是否强制重跑
+
+    TaskTriggerResult:
+      type: object
+      required:
+        - taskLogId
+        - taskType
+        - targetDate
+        - message
+      properties:
+        taskLogId:
+          type: integer
+          format: int64
+        taskType:
+          type: string
+        targetDate:
+          type: string
+          format: date
+        message:
+          type: string
+          example: "任务已提交，异步执行中"
+
+    TaskLogQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            taskType:
+              type: string
+              enum: [ DAILY_METER_SETTLEMENT, RENT_BILL_CHECK, CONTRACT_EXPIRY_CHECK ]
+            status:
+              type: string
+              enum: [ RUNNING, SUCCESS, PARTIAL_FAILURE, FAILED ]
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    ScheduleTaskLog:
+      type: object
+      required:
+        - id
+        - taskType
+        - scheduledDate
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        taskType:
+          type: string
+          enum: [ DAILY_METER_SETTLEMENT, RENT_BILL_CHECK, CONTRACT_EXPIRY_CHECK ]
+        scheduledDate:
+          type: string
+          format: date
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [ RUNNING, SUCCESS, PARTIAL_FAILURE, FAILED ]
+        totalCount:
+          type: integer
+        successCount:
+          type: integer
+        failureCount:
+          type: integer
+        errorSummary:
+          type: string
+
+    TaskLogPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [ items ]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ScheduleTaskLog'

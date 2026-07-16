@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <!-- ═══════════════════════════════════════════
+       account — 预付费水电钱包账户
+       ─────────────────────────────────────────
+       设计说明：
+         - 账户分两类：ROOM_SHARED（企业为合同房间开户） / TENANT（员工入住时开户）
+         - (owner_type, owner_id) 唯一，同一 owner 只能有一个非 CLOSED 账户
+         - 所有余额变动同步写 account_transaction 流水，余额不直接读事务记录累加
+         - balance / frozen_balance 直接存储，通过乐观锁或 SELECT FOR UPDATE 保证并发安全
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="004-account" author="dev">
+    <createTable tableName="account" remarks="预付费水电账户">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="account_no" type="VARCHAR(32)"
+        remarks="业务账号 ACC-{TYPE}-{yyyyMMdd}-{seq}，全局唯一">
+        <constraints unique="true" nullable="false"/>
+      </column>
+      <column name="account_type" type="VARCHAR(20)"
+        remarks="账户类型：ROOM_SHARED | TENANT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="owner_type" type="VARCHAR(20)"
+        remarks="归属类型：CONTRACT_ROOM | TENANCY">
+        <constraints nullable="false"/>
+      </column>
+      <column name="owner_id" type="BIGINT"
+        remarks="对应 contract_room.id 或 tenancy.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="balance" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="可用余额（元）"/>
+      <column name="frozen_balance" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="冻结余额（结算中，不可使用）"/>
+      <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+        remarks="账户状态：ACTIVE | FROZEN | CLOSED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="currency" type="VARCHAR(3)" defaultValue="CNY"
+        remarks="货币单位"/>
+      <column name="created_by" type="BIGINT"
+        remarks="创建操作者 user_id"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- 同一 owner 只能有一个账户（应用层校验 + DB 索引） -->
+    <createIndex tableName="account" indexName="uq_account_owner" unique="true">
+      <column name="owner_type"/>
+      <column name="owner_id"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       account_transaction — 账户流水明细
+       ─────────────────────────────────────────
+       每次余额变动（充值/扣款/冻结/解冻/退款）均写一条流水。
+       balance_before / balance_after 记录快照，支持独立审计。
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="004-account-transaction" author="dev">
+    <createTable tableName="account_transaction" remarks="账户流水明细">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="account_id" type="BIGINT"
+        remarks="关联 account.id">
+        <constraints nullable="false"/>
+      </column>
+      <column name="transaction_type" type="VARCHAR(30)"
+        remarks="TOP_UP | DEDUCT | FREEZE | UNFREEZE | REFUND | ADJUST">
+        <constraints nullable="false"/>
+      </column>
+      <column name="direction" type="VARCHAR(10)"
+        remarks="余额方向：IN（增加）| OUT（减少）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="amount" type="DECIMAL(12,2)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="balance_before" type="DECIMAL(12,2)"
+        remarks="变动前可用余额快照"/>
+      <column name="balance_after" type="DECIMAL(12,2)"
+        remarks="变动后可用余额快照"/>
+      <column name="reference_type" type="VARCHAR(30)"
+        remarks="关联业务类型：METER_SETTLEMENT | TOP_UP_BILL | SETTLEMENT | MANUAL"/>
+      <column name="reference_id" type="BIGINT"
+        remarks="关联业务 ID（meter_daily_settlement.id 等）"/>
+      <column name="note" type="VARCHAR(200)"
+        remarks="备注说明"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="account_transaction" indexName="idx_acct_txn_account_id">
+      <column name="account_id"/>
+      <column name="created_at"/>
+    </createIndex>
+
+    <!-- 充值回调幂等：同一 TOP_UP_BILL reference_id 不能重复入账 -->
+    <createIndex tableName="account_transaction"
+      indexName="uq_acct_txn_top_up_bill" unique="true">
+      <column name="reference_type"/>
+      <column name="reference_id"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

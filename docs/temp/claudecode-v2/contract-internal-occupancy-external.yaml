@@ -1,0 +1,533 @@
+### FILE: contract-internal.yaml
+openapi: 3.0.3
+info:
+  title: Main Service Internal API — Contract Module
+  version: 1.0.0
+  description: |
+    合同内部回调接口。
+    允许调用方：accounting 模块（支付成功回调）。
+servers:
+  - url: /internal/v1
+tags:
+  - name: internal-contract
+
+paths:
+
+  /contract/sign-bill-paid:
+    post:
+      tags: [internal-contract]
+      operationId: contractSignBillPaid
+      summary: 企业签约账单支付成功 → 合同激活为 READY_FOR_CHECK_IN
+      description: |
+        由 accounting 模块在收到 billing-service 支付成功回调后调用。
+        幂等：同一 contractId 重复调用直接返回 200。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignBillPaidRequest'
+      responses:
+        '200':
+          description: 处理成功
+
+  /contract/settlement-completed:
+    post:
+      tags: [internal-contract]
+      operationId: contractSettlementCompleted
+      summary: 退房结算完成 → 合同状态推进为 COMPLETED
+      description: |
+        由 accounting 模块结算完成后调用。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettlementCompletedRequest'
+      responses:
+        '200':
+          description: 处理成功
+
+components:
+  schemas:
+    SignBillPaidRequest:
+      type: object
+      required: [contractId, billId, paidAt]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        billId:
+          type: integer
+          format: int64
+        paidAt:
+          type: string
+          format: date-time
+
+    SettlementCompletedRequest:
+      type: object
+      required: [contractId]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        settlementBillId:
+          type: integer
+          format: int64
+
+---
+### FILE: occupancy-external.yaml
+openapi: 3.0.3
+info:
+  title: Main Service API — Occupancy Module
+  version: 1.0.0
+  description: |
+    居住关系管理：分配、入住、退宿、换宿。
+    权限格式：occupancy:{resource}:{action}
+servers:
+  - url: /
+tags:
+  - name: occupancy-assignments
+    description: 分配管理（STAFF 专属）
+  - name: occupancy-stays
+    description: 入住/退宿/换宿
+
+paths:
+
+  # ═══════════════════════════════════════════
+  # 分配管理
+  # ═══════════════════════════════════════════
+
+  /occupancy/assignments:
+    post:
+      tags: [occupancy-assignments]
+      operationId: assignTenantToRoom
+      summary: 分配租客到合同房间（仅 STAFF）
+      description: |
+        前置条件：
+        - contract.status in {SIGN_BILL_PENDING, READY_FOR_CHECK_IN}
+        - tenant 属于该企业
+        - effectiveOccupied (ASSIGNED + CHECKED_IN) < Room.maxOccupancy
+        
+        动作：
+        - 创建 ASSIGNED assignment
+        - IAM 创建/激活 tenant 自助入住能力
+      x-required-permission: occupancy:assignment:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignTenantRequest'
+      responses:
+        '201':
+          description: 分配成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomAssignment'
+        '400':
+          description: 参数错误 / 容量已满 / 租客不属于企业
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ErrorBody'
+        '409':
+          description: 容量已满（effectiveOccupied >= maxOccupancy）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ErrorBody'
+
+  /occupancy/assignments/query:
+    post:
+      tags: [occupancy-assignments]
+      operationId: queryAssignments
+      summary: 分页查询分配记录
+      x-required-permission: occupancy:assignment:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentPageResult'
+
+  /occupancy/assignments/{id}/cancel:
+    put:
+      tags: [occupancy-assignments]
+      operationId: cancelAssignment
+      summary: 取消分配（ASSIGNED → CANCELLED）
+      x-required-permission: occupancy:assignment:write
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomAssignment'
+        '400':
+          description: assignment 已消费或已取消
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ErrorBody'
+
+  # ═══════════════════════════════════════════
+  # 入住管理
+  # ═══════════════════════════════════════════
+
+  /occupancy/stays/check-in:
+    post:
+      tags: [occupancy-stays]
+      operationId: checkIn
+      summary: 办理入住（TENANT 自助 或 STAFF 代办）
+      description: |
+        前置条件：
+        - assignment.status = ASSIGNED
+        - contract.status = READY_FOR_CHECK_IN
+        - CHECKED_IN 数 < Room.maxOccupancy
+        
+        动作：
+        - assignment → CONSUMED
+        - 创建 Stay(CHECKED_IN)
+        - metering 采集入住读数（锚点）
+        - accounting 创建个人押金账单
+        - device-service 下发门锁凭证
+        
+        selfCheckIn：调用者必须是 assignment 对应的 tenant
+        staffCheckIn：调用者为有权限的 STAFF（请求体中指定 assignmentId）
+      x-required-permission: occupancy:stay:checkin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '201':
+          description: 入住成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StayDetail'
+        '400':
+          description: assignment 状态不合法 / 合同状态不允许 / 押金账单创建失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ErrorBody'
+
+  /occupancy/stays/query:
+    post:
+      tags: [occupancy-stays]
+      operationId: queryStays
+      summary: 分页查询入住记录
+      x-required-permission: occupancy:stay:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StayQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StayPageResult'
+
+  /occupancy/stays/{id}:
+    get:
+      tags: [occupancy-stays]
+      operationId: getStay
+      summary: 入住记录详情
+      x-required-permission: occupancy:stay:read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StayDetail'
+        '404':
+          description: 记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ErrorBody'
+
+  /occupancy/stays/{id}/check-out:
+    put:
+      tags: [occupancy-stays]
+      operationId: checkOut
+      summary: 办理退宿（CHECKED_IN → CHECKED_OUT）
+      description: |
+        动作：
+        - Stay → CHECKED_OUT
+        - metering 采集退宿读数
+        - device-service 回收门锁凭证
+        - accounting 发起个人押金结算
+      x-required-permission: occupancy:stay:checkout
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 退宿成功，押金结算异步处理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StayDetail'
+        '400':
+          description: Stay 状态不允许退宿
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ErrorBody'
+
+  /occupancy/stays/{id}/transfer:
+    post:
+      tags: [occupancy-stays]
+      operationId: transferTenant
+      summary: 换宿（跨合同支持）
+      description: |
+        前置条件：
+        - fromStay.status = CHECKED_IN
+        - 个人押金 DepositLedger.status = ACTIVE
+        - 目标合同 status = READY_FOR_CHECK_IN
+        - 目标房间 effectiveOccupied < maxOccupancy
+        
+        动作：
+        - 采集原房间退宿读数
+        - fromStay → TRANSFERRED
+        - 创建目标房间 assignment（内部直接消费）
+        - 创建新 Stay(CHECKED_IN)
+        - 采集新房间入住读数
+        - 迁移押金资格（current_stay_id 更新）
+        - 迁移租客子余额到新房间账户
+        - 门锁切换
+      x-required-permission: occupancy:stay:transfer
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferTenantRequest'
+      responses:
+        '200':
+          description: 换宿成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResult'
+        '400':
+          description: 前置条件不满足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ErrorBody'
+
+components:
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  responses:
+    ErrorBody:
+      description: 错误
+      content:
+        application/json:
+          schema:
+            $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+
+    AssignTenantRequest:
+      type: object
+      required: [contractRoomId, tenantId]
+      properties:
+        contractRoomId:
+          type: integer
+          format: int64
+        tenantId:
+          type: integer
+          format: int64
+
+    CheckInRequest:
+      type: object
+      required: [assignmentId]
+      properties:
+        assignmentId:
+          type: integer
+          format: int64
+          description: 入住消费的 assignment ID
+
+    TransferTenantRequest:
+      type: object
+      required: [toContractRoomId]
+      properties:
+        toContractRoomId:
+          type: integer
+          format: int64
+          description: 目标合同房间 ID
+
+    AssignmentQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            contractId:
+              type: integer
+              format: int64
+            roomId:
+              type: integer
+              format: int64
+            tenantId:
+              type: integer
+              format: int64
+            status:
+              type: string
+              enum: [ASSIGNED, CONSUMED, CANCELLED]
+
+    StayQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            contractId:
+              type: integer
+              format: int64
+            roomId:
+              type: integer
+              format: int64
+            tenantId:
+              type: integer
+              format: int64
+            stayStatus:
+              type: string
+              enum: [CHECKED_IN, TRANSFERRED, CHECKED_OUT]
+
+    RoomAssignment:
+      type: object
+      required: [id, contractId, contractRoomId, roomId, tenantId, status, assignedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        contractRoomId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        tenantId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [ASSIGNED, CONSUMED, CANCELLED]
+        assignedAt:
+          type: string
+          format: date-time
+        assignedBy:
+          type: integer
+          format: int64
+
+    Stay:
+      type: object
+      required: [id, contractId, roomId, tenantId, stayStatus, checkInAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        sourceAssignmentId:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        contractRoomId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        tenantId:
+          type: integer
+          format: int64
+        stayStatus:
+          type: string
+          enum: [CHECKED_IN, TRANSFERRED, CHECKED_OUT]
+        checkInAt:
+          type: string
+          format: date-time
+        checkOutAt:
+          type: string
+          format: date-time
+
+    StayDetail:
+      allOf:
+        - $ref: '#/components/schemas/Stay'
+        - type: object
+          properties:
+            personalDepositBillId:
+              type: integer
+              format: int64
+            personalDepositStatus:
+              type: string
+              enum: [PENDING_PAYMENT, ACTIVE, REFUND_PENDING, CLOSED]
+
+    TransferResult:
+      type: object
+      required: [fromStay, toStay, transferRecordId]
+      properties:
+        fromStay:
+          $ref: '#/components/schemas/Stay'
+        toStay:
+          $ref: '#/components/schemas/Stay'
+        transferRecordId:
+          type: integer
+          format: int64
+
+    AssignmentPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/RoomAssignment'
+
+    StayPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Stay'

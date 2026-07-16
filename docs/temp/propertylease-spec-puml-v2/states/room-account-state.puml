@@ -1,0 +1,11 @@
+@startuml
+title Room Account State Machine
+
+[*] --> ACTIVE
+
+ACTIVE --> FROZEN : settlement / abnormal handling
+FROZEN --> ACTIVE : unfreeze
+ACTIVE --> CLOSED : contract-room relationship ended and account archived
+
+CLOSED --> [*]
+@enduml

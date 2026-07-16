@@ -1,0 +1,622 @@
+openapi: 3.0.3
+info:
+  title: Main Service API — Accounting Module
+  version: 1.0.0
+  description: |
+    账务管理：房间账户（含子余额）、账单、押金台账、流水查询、充值。
+    权限格式：accounting:{resource}:{action}
+servers:
+  - url: /
+tags:
+  - name: accounting-room-accounts
+    description: 房间账户管理
+  - name: accounting-sub-balances
+    description: 子余额与流水
+  - name: accounting-bills
+    description: 账单管理
+  - name: accounting-deposit-ledgers
+    description: 押金台账
+  - name: accounting-recharge
+    description: 账户充值
+
+paths:
+
+  # ═══════════════════════════════════════════
+  # 房间账户
+  # ═══════════════════════════════════════════
+
+  /accounting/room-accounts/query:
+    post:
+      tags: [accounting-room-accounts]
+      operationId: queryRoomAccounts
+      summary: 分页查询房间账户列表
+      x-required-permission: accounting:room-account:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomAccountQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomAccountPageResult'
+
+  /accounting/room-accounts/{id}:
+    get:
+      tags: [accounting-room-accounts]
+      operationId: getRoomAccount
+      summary: 房间账户详情（含所有子余额）
+      x-required-permission: accounting:room-account:read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomAccountDetail'
+        '404':
+          description: 账户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /accounting/room-accounts/by-room/{roomId}:
+    get:
+      tags: [accounting-room-accounts]
+      operationId: getRoomAccountByRoom
+      summary: 通过 roomId 查询房间账户详情
+      x-required-permission: accounting:room-account:read
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomAccountDetail'
+        '404':
+          description: 账户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  # 子余额与流水
+  # ═══════════════════════════════════════════
+
+  /accounting/room-accounts/{id}/entries/query:
+    post:
+      tags: [accounting-sub-balances]
+      operationId: queryRoomAccountEntries
+      summary: 分页查询房间账户流水明细
+      x-required-permission: accounting:entry:read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntryQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryPageResult'
+
+  # ═══════════════════════════════════════════
+  # 充值
+  # ═══════════════════════════════════════════
+
+  /accounting/room-accounts/{id}/recharge:
+    post:
+      tags: [accounting-recharge]
+      operationId: initiateRecharge
+      summary: 发起房间水电账户充值（生成充值账单，返回支付信息）
+      description: |
+        payerType 决定为哪个子余额充值：
+        - ENTERPRISE：企业子余额充值
+        - TENANT：租客个人子余额充值
+        充值完成后由 billing-service 回调 /internal/v1/accounting/bills/paid。
+      x-required-permission: accounting:recharge:write
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RechargeRequest'
+      responses:
+        '200':
+          description: 充值账单已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RechargeResult'
+        '400':
+          description: 账户状态不允许充值
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  # 账单管理
+  # ═══════════════════════════════════════════
+
+  /accounting/bills/query:
+    post:
+      tags: [accounting-bills]
+      operationId: queryBills
+      summary: 分页查询账单列表
+      x-required-permission: accounting:bill:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillPageResult'
+
+  /accounting/bills/{id}:
+    get:
+      tags: [accounting-bills]
+      operationId: getBill
+      summary: 账单详情
+      x-required-permission: accounting:bill:read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
+        '404':
+          description: 账单不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  /accounting/bills/{id}/cancel:
+    put:
+      tags: [accounting-bills]
+      operationId: cancelBill
+      summary: 作废账单（仅 PENDING 状态可操作）
+      x-required-permission: accounting:bill:write
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 作废成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
+        '400':
+          description: 账单状态不允许作废
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  # 押金台账
+  # ═══════════════════════════════════════════
+
+  /accounting/deposit-ledgers/query:
+    post:
+      tags: [accounting-deposit-ledgers]
+      operationId: queryDepositLedgers
+      summary: 分页查询押金台账
+      x-required-permission: accounting:deposit:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepositLedgerQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepositLedgerPageResult'
+
+  /accounting/deposit-ledgers/{id}:
+    get:
+      tags: [accounting-deposit-ledgers]
+      operationId: getDepositLedger
+      summary: 押金台账详情
+      x-required-permission: accounting:deposit:read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepositLedger'
+        '404':
+          description: 记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+components:
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+
+    # ── 查询请求 ──────────────────────────────────────────────────
+
+    RoomAccountQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            roomId:
+              type: integer
+              format: int64
+            contractId:
+              type: integer
+              format: int64
+            status:
+              type: string
+              enum: [ACTIVE, FROZEN, CLOSED]
+
+    EntryQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            ownerType:
+              type: string
+              enum: [ENTERPRISE, TENANT]
+            ownerId:
+              type: integer
+              format: int64
+            entryType:
+              type: string
+              enum: [RECHARGE, DAILY_DEDUCT, TRANSFER_OUT, TRANSFER_IN,
+                     REFUND, FREEZE, UNFREEZE, ADJUST, INSUFFICIENT]
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    BillQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            billType:
+              type: string
+              enum: [ENTERPRISE_SIGN_BILL, PERSONAL_DEPOSIT_BILL,
+                     RECHARGE_BILL, SETTLEMENT_BILL, REFUND_BILL]
+            billOwnerType:
+              type: string
+              enum: [ENTERPRISE, TENANT]
+            billOwnerId:
+              type: integer
+              format: int64
+            contractId:
+              type: integer
+              format: int64
+            roomId:
+              type: integer
+              format: int64
+            tenantId:
+              type: integer
+              format: int64
+            billStatus:
+              type: string
+              enum: [PENDING, PAID, CANCELLED, REFUNDED]
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+
+    DepositLedgerQueryRequest:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest'
+        - type: object
+          properties:
+            depositType:
+              type: string
+              enum: [ENTERPRISE, PERSONAL]
+            ownerId:
+              type: integer
+              format: int64
+            contractId:
+              type: integer
+              format: int64
+            status:
+              type: string
+              enum: [PENDING_PAYMENT, ACTIVE, REFUND_PENDING, CLOSED]
+
+    # ── 充值 ──────────────────────────────────────────────────────
+
+    RechargeRequest:
+      type: object
+      required: [amount, payerType, paymentMethod]
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        payerType:
+          type: string
+          enum: [ENTERPRISE, TENANT]
+          description: 充值到哪个子余额
+        payerId:
+          type: integer
+          format: int64
+          description: enterpriseId 或 tenantId（TENANT 时必填）
+        paymentMethod:
+          type: string
+          enum: [WECHAT_PAY, ALIPAY]
+
+    RechargeResult:
+      type: object
+      required: [billId, billingServiceBillId, paymentUrl]
+      properties:
+        billId:
+          type: integer
+          format: int64
+          description: accounting 模块内 bill.id
+        billingServiceBillId:
+          type: integer
+          format: int64
+          description: billing-service 侧账单 ID
+        paymentUrl:
+          type: string
+          description: 第三方支付跳转 URL
+
+    # ── 业务对象 ──────────────────────────────────────────────────
+
+    RoomAccountSubBalance:
+      type: object
+      required: [id, ownerType, ownerId, availableBalance, frozenBalance]
+      properties:
+        id:
+          type: integer
+          format: int64
+        ownerType:
+          type: string
+          enum: [ENTERPRISE, TENANT]
+        ownerId:
+          type: integer
+          format: int64
+        availableBalance:
+          type: number
+          format: double
+        frozenBalance:
+          type: number
+          format: double
+
+    RoomAccount:
+      type: object
+      required: [id, roomId, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        currentContractId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [ACTIVE, FROZEN, CLOSED]
+
+    RoomAccountDetail:
+      allOf:
+        - $ref: '#/components/schemas/RoomAccount'
+        - type: object
+          required: [subBalances]
+          properties:
+            subBalances:
+              type: array
+              items:
+                $ref: '#/components/schemas/RoomAccountSubBalance'
+
+    RoomAccountEntry:
+      type: object
+      required: [id, ownerType, ownerId, entryType, amount, occurredAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        ownerType:
+          type: string
+          enum: [ENTERPRISE, TENANT]
+        ownerId:
+          type: integer
+          format: int64
+        entryType:
+          type: string
+          enum: [RECHARGE, DAILY_DEDUCT, TRANSFER_OUT, TRANSFER_IN,
+                 REFUND, FREEZE, UNFREEZE, ADJUST, INSUFFICIENT]
+        amount:
+          type: number
+          format: double
+          description: 正数入账，负数出账
+        relatedBillId:
+          type: integer
+          format: int64
+        occurredAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+
+    Bill:
+      type: object
+      required: [id, billNo, billType, billOwnerType, billOwnerId, totalAmount, billStatus, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        billNo:
+          type: string
+        billType:
+          type: string
+          enum: [ENTERPRISE_SIGN_BILL, PERSONAL_DEPOSIT_BILL,
+                 RECHARGE_BILL, SETTLEMENT_BILL, REFUND_BILL]
+        billOwnerType:
+          type: string
+          enum: [ENTERPRISE, TENANT]
+        billOwnerId:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        tenantId:
+          type: integer
+          format: int64
+        totalAmount:
+          type: number
+          format: double
+        billStatus:
+          type: string
+          enum: [PENDING, PAID, CANCELLED, REFUNDED]
+        billingServiceBillId:
+          type: integer
+          format: int64
+        paidAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    DepositLedger:
+      type: object
+      required: [id, depositType, ownerType, ownerId, contractId, originalAmount,
+                 occupiedAmount, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        depositType:
+          type: string
+          enum: [ENTERPRISE, PERSONAL]
+        ownerType:
+          type: string
+          enum: [ENTERPRISE, TENANT]
+        ownerId:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        currentStayId:
+          type: integer
+          format: int64
+        originalAmount:
+          type: number
+          format: double
+        occupiedAmount:
+          type: number
+          format: double
+        refundableAmount:
+          type: number
+          format: double
+        status:
+          type: string
+          enum: [PENDING_PAYMENT, ACTIVE, REFUND_PENDING, CLOSED]
+        relatedBillId:
+          type: integer
+          format: int64
+
+    # ── 分页结果 ──────────────────────────────────────────────────
+
+    RoomAccountPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/RoomAccount'
+
+    EntryPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/RoomAccountEntry'
+
+    BillPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Bill'
+
+    DepositLedgerPageResult:
+      allOf:
+        - $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/DepositLedger'

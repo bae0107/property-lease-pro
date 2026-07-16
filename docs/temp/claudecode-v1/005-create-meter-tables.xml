@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <!-- ═══════════════════════════════════════════
+       meter_reading — 水电抄表记录
+       ─────────────────────────────────────────
+       设计说明：
+         - reading_value 为表盘累计读数（非增量），增量 = 本次 - 上次
+         - category 区分底数（CHECK_IN/CHECK_OUT）和周期读数（PERIODIC）
+         - source 区分 IoT 自动采集和人工录入，业务处理规则一致
+         - IOT 幂等键：device_id + read_at（唯一索引）
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="005-meter-reading" author="dev">
+    <createTable tableName="meter_reading" remarks="水电抄表记录">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="room_id" type="BIGINT"
+        remarks="关联房间 ID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="meter_type" type="VARCHAR(20)"
+        remarks="表计类型：WATER | ELECTRICITY">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reading_value" type="DECIMAL(12,3)"
+        remarks="表盘累计读数（非增量）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="read_at" type="DATETIME(3)"
+        remarks="实际抄表时间">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reading_source" type="VARCHAR(20)"
+        remarks="来源：IOT | MANUAL">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reading_category" type="VARCHAR(20)"
+        remarks="类别：CHECK_IN | CHECK_OUT | PERIODIC">
+        <constraints nullable="false"/>
+      </column>
+      <column name="tenancy_id" type="BIGINT"
+        remarks="入住记录 ID（CHECK_IN / CHECK_OUT 时关联）"/>
+      <column name="device_id" type="VARCHAR(100)"
+        remarks="IoT 设备标识（IOT 来源时填写，用于幂等）"/>
+      <column name="operator_id" type="BIGINT"
+        remarks="人工录入操作员 user_id"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- 房间+类型+时间索引，日结查询核心路径 -->
+    <createIndex tableName="meter_reading" indexName="idx_meter_reading_room_type_at">
+      <column name="room_id"/>
+      <column name="meter_type"/>
+      <column name="read_at"/>
+    </createIndex>
+
+    <!-- IOT 幂等：同一设备同一时刻只采集一次 -->
+    <createIndex tableName="meter_reading"
+      indexName="uq_meter_reading_device_at" unique="true">
+      <column name="device_id"/>
+      <column name="read_at"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       meter_daily_settlement — 水电日结记录
+       ─────────────────────────────────────────
+       设计说明：
+         - (room_id, settlement_date, meter_type) 唯一，幂等重跑安全
+         - shortfall > 0 时 status = PARTIAL（部分扣款），需关注欠费
+         - 日结失败（读数缺失）status = FAILED，不影响其他房间
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="005-meter-daily-settlement" author="dev">
+    <createTable tableName="meter_daily_settlement" remarks="水电日结记录">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="room_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="settlement_date" type="DATE"
+        remarks="日结业务日期（非执行时间）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="meter_type" type="VARCHAR(20)"
+        remarks="WATER | ELECTRICITY">
+        <constraints nullable="false"/>
+      </column>
+      <column name="start_reading" type="DECIMAL(12,3)"
+        remarks="起始表盘读数"/>
+      <column name="end_reading" type="DECIMAL(12,3)"
+        remarks="截止表盘读数"/>
+      <column name="usage" type="DECIMAL(12,3)"
+        remarks="本日用量（end - start）"/>
+      <column name="unit_price" type="DECIMAL(10,4)"
+        remarks="当日适用单价（元/度 或 元/吨）"/>
+      <column name="total_amount" type="DECIMAL(12,2)"
+        remarks="应扣总金额（usage × unit_price）"/>
+      <column name="deducted_from_shared" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="从 ROOM_SHARED 账户实际扣除金额"/>
+      <column name="deducted_from_tenants" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="从各租客账户实际扣除总金额"/>
+      <column name="shortfall" type="DECIMAL(12,2)" defaultValueNumeric="0"
+        remarks="欠费金额（0 表示已全额扣款）"/>
+      <column name="status" type="VARCHAR(20)"
+        remarks="PENDING | SETTLED | PARTIAL | FAILED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- 幂等唯一约束 -->
+    <createIndex tableName="meter_daily_settlement"
+      indexName="uq_meter_daily_stl_room_date_type" unique="true">
+      <column name="room_id"/>
+      <column name="settlement_date"/>
+      <column name="meter_type"/>
+    </createIndex>
+
+    <createIndex tableName="meter_daily_settlement"
+      indexName="idx_meter_daily_stl_date_status">
+      <column name="settlement_date"/>
+      <column name="status"/>
+    </createIndex>
+  </changeSet>
+
+  <!-- ═══════════════════════════════════════════
+       meter_price_config — 计费单价配置
+       ─────────────────────────────────────────
+       设计说明：
+         - store_id IS NULL 表示全局默认单价
+         - 查询优先：store_id 匹配 → 全局默认
+         - effective_to IS NULL 表示当前有效版本
+         - 新增单价时自动关闭上一版本的 effective_to
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="005-meter-price-config" author="dev">
+    <createTable tableName="meter_price_config" remarks="水电计费单价配置">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="store_id" type="BIGINT"
+        remarks="门店 ID，NULL 表示全局默认"/>
+      <column name="meter_type" type="VARCHAR(20)"
+        remarks="WATER | ELECTRICITY">
+        <constraints nullable="false"/>
+      </column>
+      <column name="unit_price" type="DECIMAL(10,4)"
+        remarks="单价（元/度 或 元/吨）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="effective_from" type="DATE"
+        remarks="生效起始日期（含）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="effective_to" type="DATE"
+        remarks="生效截止日期（含），NULL 表示当前有效版本"/>
+      <column name="created_by" type="BIGINT"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="meter_price_config"
+      indexName="idx_meter_price_store_type_from">
+      <column name="store_id"/>
+      <column name="meter_type"/>
+      <column name="effective_from"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

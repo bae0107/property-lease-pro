@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         contract 模块：合同、合同房间、合同计费规则
+         ⚠️ 本文件此前在任何上传包里都不存在（HANDOFF.md 把它列为"已完成"，
+         实际上从未真正交付），本次据 ContractRepository / JooqContractRepository /
+         ContractLifecycleService 里实际引用的列名重建。字段名如与你本地已有的
+         版本冲突，以你本地为准，这边照着改列名即可，不影响上层业务逻辑代码。
+         状态机：DRAFT → SIGN_BILL_PENDING → READY_FOR_CHECK_IN →
+                 PARTIALLY_RETURNED → SETTLING → COMPLETED（CANCELLED 为退出分支）
+         ========================================================= -->
+
+    <changeSet id="014-contract" author="dev">
+        <createTable tableName="contract" remarks="合同主表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="contract_no" type="VARCHAR(50)" remarks="合同编号 CT-yyyyMM-seq">
+                <constraints nullable="false"/>
+            </column>
+            <column name="enterprise_id" type="BIGINT" remarks="enterprise.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(30)"
+                remarks="DRAFT|SIGN_BILL_PENDING|READY_FOR_CHECK_IN|PARTIALLY_RETURNED|SETTLING|COMPLETED|CANCELLED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_date" type="DATE"><constraints nullable="false"/></column>
+            <column name="end_date" type="DATE"><constraints nullable="false"/></column>
+            <column name="payment_mode" type="VARCHAR(30)" remarks="付款方式，业务侧自行约定取值"/>
+            <column name="remark" type="VARCHAR(500)"/>
+            <column name="sign_bill_id" type="BIGINT" remarks="关联 accounting.bill.id（confirmContract 时写入）"/>
+            <column name="created_by" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+
+        <createIndex tableName="contract" indexName="uq_contract_no" unique="true">
+            <column name="contract_no"/>
+        </createIndex>
+        <createIndex tableName="contract" indexName="idx_contract_enterprise">
+            <column name="enterprise_id"/>
+        </createIndex>
+        <createIndex tableName="contract" indexName="idx_contract_status_end_date"
+            remarks="findExpiringContracts 用">
+            <column name="status"/>
+            <column name="end_date"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="014-contract-room" author="dev">
+        <createTable tableName="contract_room" remarks="合同房间明细（一份合同可含多个房间）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="contract_id" type="BIGINT" remarks="contract.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="room_id" type="BIGINT" remarks="room_info.RoomId">
+                <constraints nullable="false"/>
+            </column>
+            <column name="signed_rent" type="DECIMAL(12,2)" remarks="签约租金/月">
+                <constraints nullable="false"/>
+            </column>
+            <column name="lease_start" type="DATE"/>
+            <column name="lease_end" type="DATE"/>
+            <column name="status" type="VARCHAR(20)" remarks="PENDING|ACTIVE|RETURNED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="returned_at" type="DATETIME(3)"/>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+
+        <createIndex tableName="contract_room" indexName="idx_croom_contract">
+            <column name="contract_id"/>
+        </createIndex>
+        <createIndex tableName="contract_room" indexName="idx_croom_room_status"
+            remarks="existsActiveContractRoom / isRoomAvailableForContract 用">
+            <column name="room_id"/>
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="014-contract-charge-rule" author="dev">
+        <createTable tableName="contract_charge_rule" remarks="合同计费规则（含企业押金等一次性费用）">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="contract_id" type="BIGINT" remarks="contract.id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="charge_type" type="VARCHAR(50)"
+                remarks="如 ENTERPRISE_DEPOSIT（confirmContract 时会汇总此类型金额）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payer_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount" type="DECIMAL(12,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="rule_snapshot" type="VARCHAR(2000)" remarks="计费规则快照（JSON 字符串，审计用）"/>
+            <column name="created_at" type="DATETIME(3)"><constraints nullable="false"/></column>
+        </createTable>
+
+        <createIndex tableName="contract_charge_rule" indexName="idx_ccr_contract">
+            <column name="contract_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

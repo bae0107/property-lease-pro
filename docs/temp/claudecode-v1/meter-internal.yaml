@@ -1,0 +1,79 @@
+openapi: 3.0.3
+info:
+  title: Main Service Internal API - Meter Module
+  description: |
+    meter 模块内部接口契约。
+
+    安全规则：
+    - 需要有效 Service JWT（X-Service-Token）
+    - 无 x-required-permission
+    - 允许调用方：device-service（IoT 读数推送）、main-service 内部模块
+  version: 1.0.0
+
+servers:
+  - url: /internal/v1
+
+tags:
+  - name: internal-meter
+    description: 抄表内部接口（IoT 读数推送）
+
+paths:
+
+  /meter/readings/push:
+    post:
+      tags: [ internal-meter ]
+      operationId: pushIotReading
+      summary: Device Service 推送 IoT 水电读数
+      description: |
+        由 Device Service 在采集到水电表读数后调用。
+        接口幂等：同一 deviceId + readAt 重复推送返回 200，不重复记录。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IotReadingPushRequest'
+      responses:
+        '200':
+          description: 处理成功（含幂等重复推送）
+        '400':
+          description: 参数校验失败 / roomId 无活跃入住
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: 调用方不在白名单
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    IotReadingPushRequest:
+      type: object
+      required:
+        - roomId
+        - meterType
+        - readingValue
+        - readAt
+        - deviceId
+      properties:
+        roomId:
+          type: integer
+          format: int64
+        meterType:
+          type: string
+          enum: [ WATER, ELECTRICITY ]
+        readingValue:
+          type: number
+          format: double
+          description: 表盘累计读数（非增量）
+        readAt:
+          type: string
+          format: date-time
+        deviceId:
+          type: string
+          description: IoT 设备唯一标识（用于幂等键）

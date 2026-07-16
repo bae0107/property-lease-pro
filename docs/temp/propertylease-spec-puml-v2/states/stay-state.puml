@@ -1,0 +1,11 @@
+@startuml
+title Stay State Machine
+
+[*] --> CHECKED_IN : check-in
+
+CHECKED_IN --> TRANSFERRED : transfer out
+CHECKED_IN --> CHECKED_OUT : check-out
+
+TRANSFERRED --> [*]
+CHECKED_OUT --> [*]
+@enduml

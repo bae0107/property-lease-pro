@@ -1,0 +1,356 @@
+openapi: 3.0.3
+info:
+  title: Main Service API — Customer Module
+  version: 1.0.0
+  description: |
+    企业和员工管理接口。
+    权限格式：customer:{resource}:{action}
+servers:
+  - url: /
+tags:
+  - name: customer-enterprises
+    description: 企业管理
+  - name: customer-employees
+    description: 员工管理
+
+paths:
+
+  /customer/enterprises:
+    post:
+      tags: [customer-enterprises]
+      operationId: createEnterprise
+      summary: 创建企业
+      x-required-permission: customer:enterprise:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEnterpriseRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enterprise'
+        '400':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+  /customer/enterprises/query:
+    post:
+      tags: [customer-enterprises]
+      operationId: queryEnterprises
+      summary: 分页查询企业列表
+      x-required-permission: customer:enterprise:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnterpriseQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnterprisePageResult'
+
+  /customer/enterprises/{id}:
+    get:
+      tags: [customer-enterprises]
+      operationId: getEnterprise
+      summary: 查询企业详情
+      x-required-permission: customer:enterprise:read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enterprise'
+        '404':
+          description: 企业不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+    put:
+      tags: [customer-enterprises]
+      operationId: updateEnterprise
+      summary: 更新企业信息
+      x-required-permission: customer:enterprise:write
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEnterpriseRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enterprise'
+        '404':
+          description: 企业不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+  /customer/employees:
+    post:
+      tags: [customer-employees]
+      operationId: createEmployee
+      summary: 创建员工
+      x-required-permission: customer:employee:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          description: 参数校验失败 / 企业不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+  /customer/employees/query:
+    post:
+      tags: [customer-employees]
+      operationId: queryEmployees
+      summary: 分页查询员工列表
+      x-required-permission: customer:employee:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePageResult'
+
+  /customer/employees/{id}:
+    get:
+      tags: [customer-employees]
+      operationId: getEmployee
+      summary: 查询员工详情
+      x-required-permission: customer:employee:read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '404':
+          description: 员工不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+    put:
+      tags: [customer-employees]
+      operationId: updateEmployee
+      summary: 更新员工信息
+      x-required-permission: customer:employee:write
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmployeeRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '404':
+          description: 员工不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+components:
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+
+    CreateEnterpriseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        contactName:
+          type: string
+          maxLength: 100
+        contactMobile:
+          type: string
+          maxLength: 20
+        remark:
+          type: string
+          maxLength: 500
+
+    UpdateEnterpriseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        contactName:
+          type: string
+          maxLength: 100
+        contactMobile:
+          type: string
+          maxLength: 20
+        remark:
+          type: string
+          maxLength: 500
+
+    EnterpriseQueryRequest:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [ACTIVE, INACTIVE]
+
+    CreateEmployeeRequest:
+      type: object
+      required: [enterpriseId, name]
+      properties:
+        enterpriseId:
+          type: integer
+          format: int64
+        name:
+          type: string
+          maxLength: 100
+        mobile:
+          type: string
+          maxLength: 20
+
+    UpdateEmployeeRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        mobile:
+          type: string
+          maxLength: 20
+
+    EmployeeQueryRequest:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+        - type: object
+          required: [enterpriseId]
+          properties:
+            enterpriseId:
+              type: integer
+              format: int64
+            status:
+              type: string
+              enum: [ACTIVE, INACTIVE]
+
+    Enterprise:
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        contactName:
+          type: string
+        contactMobile:
+          type: string
+        remark:
+          type: string
+
+    Employee:
+      type: object
+      required: [id, enterpriseId, name, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        enterpriseId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        mobile:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+
+    EnterprisePageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Enterprise'
+
+    EmployeePageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Employee'

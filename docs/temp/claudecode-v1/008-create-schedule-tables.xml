@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="
+      http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <!-- ═══════════════════════════════════════════
+       schedule_task_log — 定时任务执行记录
+       ─────────────────────────────────────────
+       设计说明：
+         - schedule 模块是纯触发器，本表仅记录执行历史，不含业务数据
+         - (task_type, scheduled_date) 唯一约束是最核心的防重机制
+         - 手动触发 force=true 时，将现有记录 status 更新为 RUNNING 并重跑
+           （而不是插入新记录，保持约束有效）
+         - error_summary 存精简错误摘要，详细日志走日志系统
+       ═══════════════════════════════════════════ -->
+
+  <changeSet id="008-schedule-task-log" author="dev">
+    <createTable tableName="schedule_task_log" remarks="定时任务执行记录">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="task_type" type="VARCHAR(50)"
+        remarks="任务类型：DAILY_METER_SETTLEMENT | RENT_BILL_CHECK | CONTRACT_EXPIRY_CHECK">
+        <constraints nullable="false"/>
+      </column>
+      <column name="scheduled_date" type="DATE"
+        remarks="本次任务处理的业务日期（非执行时间）">
+        <constraints nullable="false"/>
+      </column>
+      <column name="started_at" type="DATETIME(3)"
+        remarks="任务开始执行时间"/>
+      <column name="finished_at" type="DATETIME(3)"
+        remarks="任务执行完成时间"/>
+      <column name="status" type="VARCHAR(20)"
+        remarks="RUNNING | SUCCESS | PARTIAL_FAILURE | FAILED">
+        <constraints nullable="false"/>
+      </column>
+      <column name="total_count" type="INT" defaultValueNumeric="0"
+        remarks="本次任务处理的总记录数"/>
+      <column name="success_count" type="INT" defaultValueNumeric="0"
+        remarks="成功处理的记录数"/>
+      <column name="failure_count" type="INT" defaultValueNumeric="0"
+        remarks="处理失败的记录数"/>
+      <column name="error_summary" type="VARCHAR(2000)"
+        remarks="错误摘要（精简描述失败原因）"/>
+      <column name="triggered_by" type="VARCHAR(20)" defaultValue="CRON"
+        remarks="触发来源：CRON | MANUAL"/>
+      <column name="created_at" type="DATETIME(3)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- 核心防重约束：同类型同日期只执行一次 -->
+    <createIndex tableName="schedule_task_log"
+      indexName="uq_schedule_task_log_type_date" unique="true">
+      <column name="task_type"/>
+      <column name="scheduled_date"/>
+    </createIndex>
+
+    <createIndex tableName="schedule_task_log"
+      indexName="idx_schedule_task_log_status">
+      <column name="status"/>
+      <column name="scheduled_date"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

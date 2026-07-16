@@ -1,0 +1,472 @@
+openapi: 3.0.3
+info:
+  title: Main Service Internal API — Accounting Module
+  version: 1.0.0
+  description: |
+    accounting 模块内部接口。
+    允许调用方：
+    - billing-service（支付成功回调）
+    - occupancy 模块（创建押金账单、触发结算）
+    - contract 模块（创建签约账单、触发退房结算）
+    - metering 模块（日结扣减）
+servers:
+  - url: /internal/v1
+tags:
+  - name: internal-accounting-bills
+    description: 账单操作回调
+  - name: internal-accounting-deposit
+    description: 押金操作（入住/退宿/换宿触发）
+  - name: internal-accounting-settlement
+    description: 结算操作（退房/退宿触发）
+  - name: internal-accounting-daily
+    description: 日结扣减（metering 触发）
+  - name: internal-accounting-transfer
+    description: 换宿账务操作（occupancy 触发）
+
+paths:
+
+  # ═══════════════════════════════════════════
+  # billing-service 支付回调
+  # ═══════════════════════════════════════════
+
+  /accounting/bills/paid:
+    post:
+      tags: [internal-accounting-bills]
+      operationId: billPaidCallback
+      summary: billing-service 支付成功回调（统一入口）
+      description: |
+        所有账单类型的支付成功均通过此接口通知 accounting。
+        accounting 根据 billType 路由到对应处理逻辑：
+        - ENTERPRISE_SIGN_BILL → 通知 contract 激活
+        - PERSONAL_DEPOSIT_BILL → DepositLedger → ACTIVE
+        - RECHARGE_BILL → 增加对应子余额
+        - SETTLEMENT_BILL → 完成结算，关闭相关台账
+        幂等键：billingServiceBillId，重复回调返回 200。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillPaidCallbackRequest'
+      responses:
+        '200':
+          description: 处理成功（含幂等重复回调）
+        '400':
+          description: 账单不存在 / 状态异常
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════════
+  # 签约账单（contract 触发）
+  # ═══════════════════════════════════════════
+
+  /accounting/enterprise-sign-bill:
+    post:
+      tags: [internal-accounting-bills]
+      operationId: createEnterpriseSignBill
+      summary: 创建企业签约账单（由 contract.confirmContract 调用）
+      description: |
+        根据 ContractChargeRule 快照生成：首月租金 + 企业押金。
+        同时创建 DepositLedger(ENTERPRISE, PENDING_PAYMENT)。
+        返回 accounting 侧 billId（contract 存入 sign_bill_id）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSignBillRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBillResult'
+
+  # ═══════════════════════════════════════════
+  # 押金操作（occupancy 触发）
+  # ═══════════════════════════════════════════
+
+  /accounting/personal-deposit-bill:
+    post:
+      tags: [internal-accounting-deposit]
+      operationId: createPersonalDepositBill
+      summary: 创建个人押金账单（由 occupancy.checkIn 调用）
+      description: |
+        金额取 system_config.personal_deposit_amount。
+        创建 Bill(PERSONAL_DEPOSIT_BILL) + DepositLedger(PERSONAL, PENDING_PAYMENT)。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePersonalDepositBillRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBillResult'
+
+  /accounting/personal-deposit/transfer-eligibility:
+    post:
+      tags: [internal-accounting-deposit]
+      operationId: transferPersonalDepositEligibility
+      summary: 迁移个人押金资格（由 occupancy.transfer 调用）
+      description: |
+        将 DepositLedger.current_stay_id 从 fromStayId 更新为 toStayId。
+        押金不退还不重缴，原 DepositLedger 继续有效。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferDepositEligibilityRequest'
+      responses:
+        '200':
+          description: 迁移成功
+
+  /accounting/personal-deposit/settle-checkout:
+    post:
+      tags: [internal-accounting-deposit]
+      operationId: settlePersonalDepositOnCheckout
+      summary: 退宿时结算个人押金（由 occupancy.checkOut 调用）
+      description: |
+        计算应退押金：originalAmount - occupiedAmount。
+        DepositLedger → REFUND_PENDING。
+        生成 REFUND_BILL 并提交 billing-service 发起退款。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettleDepositOnCheckoutRequest'
+      responses:
+        '200':
+          description: 结算已发起
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepositSettlementResult'
+
+  # ═══════════════════════════════════════════
+  # 换宿账务（occupancy 触发）
+  # ═══════════════════════════════════════════
+
+  /accounting/room-accounts/transfer-sub-balance:
+    post:
+      tags: [internal-accounting-transfer]
+      operationId: transferTenantSubBalance
+      summary: 换宿时迁移租客子余额（由 occupancy.transfer 调用）
+      description: |
+        将 fromRoomAccount 中指定 tenant 的可用余额迁移到 toRoomAccount。
+        企业子余额不受影响。
+        迁移金额 = fromRoom 中 tenant 的 available_balance（全额迁移）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferSubBalanceRequest'
+      responses:
+        '200':
+          description: 迁移成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferSubBalanceResult'
+
+  # ═══════════════════════════════════════════
+  # 退房结算（contract 触发）
+  # ═══════════════════════════════════════════
+
+  /accounting/settlement/partial-return:
+    post:
+      tags: [internal-accounting-settlement]
+      operationId: settlePartialReturn
+      summary: 部分退房结算（由 contract.applyPartialReturnRooms 调用）
+      description: |
+        针对退回的房间列表执行结算：
+        1. 冻结对应房间账户的企业子余额（防止继续扣减）
+        2. 计算水电欠费（meter 日结遗留 PARTIAL / INSUFFICIENT 记录汇总）
+        3. 若有欠费：生成 SETTLEMENT_BILL，追缴后关闭
+        4. 若有余额：生成 REFUND_BILL，退还企业
+        5. 房间账户 → CLOSED
+        结算完成后回调 contract /internal/v1/contract/settlement-completed。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartialReturnSettlementRequest'
+      responses:
+        '200':
+          description: 结算已发起（异步）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementInitiatedResult'
+
+  /accounting/settlement/full-return:
+    post:
+      tags: [internal-accounting-settlement]
+      operationId: settleFullReturn
+      summary: 全部退房结算（由 contract.applyFullReturnRooms 调用）
+      description: |
+        对合同下所有房间执行结算 + 企业押金结算。
+        流程同 partial-return，额外处理：
+        - DepositLedger(ENTERPRISE) 结算退还
+        结算完成后回调 contract /internal/v1/contract/settlement-completed。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FullReturnSettlementRequest'
+      responses:
+        '200':
+          description: 结算已发起（异步）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementInitiatedResult'
+
+  # ═══════════════════════════════════════════
+  # 日结扣减（metering 触发）
+  # ═══════════════════════════════════════════
+
+  /accounting/daily-deduction:
+    post:
+      tags: [internal-accounting-daily]
+      operationId: deductForDailySettlement
+      summary: 执行日结扣减（由 metering.runDailySettlement 调用）
+      description: |
+        扣减顺序：
+        1. 企业子余额优先扣（SELECT FOR UPDATE）
+        2. 不足部分由所有 CHECKED_IN stay 的租客子余额均摊
+        3. 仍不足则写 INSUFFICIENT 流水，记录欠费
+
+        幂等键：roomId + settlementDate，重复调用直接返回。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyDeductionRequest'
+      responses:
+        '200':
+          description: 扣减完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyDeductionResult'
+
+components:
+  schemas:
+
+    BillPaidCallbackRequest:
+      type: object
+      required: [billingServiceBillId, paidAt, actualAmount]
+      properties:
+        billingServiceBillId:
+          type: integer
+          format: int64
+          description: billing-service 侧账单 ID（幂等键）
+        paidAt:
+          type: string
+          format: date-time
+        actualAmount:
+          type: number
+          format: double
+
+    CreateSignBillRequest:
+      type: object
+      required: [contractId, enterpriseId, amount]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        enterpriseId:
+          type: integer
+          format: int64
+        amount:
+          type: number
+          format: double
+          description: 首月租金 + 企业押金合计
+        depositAmount:
+          type: number
+          format: double
+          description: 其中押金部分（用于创建 DepositLedger）
+
+    CreatePersonalDepositBillRequest:
+      type: object
+      required: [tenantId, stayId, contractId, roomId]
+      properties:
+        tenantId:
+          type: integer
+          format: int64
+        stayId:
+          type: integer
+          format: int64
+        contractId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+
+    TransferDepositEligibilityRequest:
+      type: object
+      required: [tenantId, fromStayId, toStayId]
+      properties:
+        tenantId:
+          type: integer
+          format: int64
+        fromStayId:
+          type: integer
+          format: int64
+        toStayId:
+          type: integer
+          format: int64
+
+    SettleDepositOnCheckoutRequest:
+      type: object
+      required: [tenantId, stayId]
+      properties:
+        tenantId:
+          type: integer
+          format: int64
+        stayId:
+          type: integer
+          format: int64
+
+    TransferSubBalanceRequest:
+      type: object
+      required: [tenantId, fromRoomId, toRoomId]
+      properties:
+        tenantId:
+          type: integer
+          format: int64
+        fromRoomId:
+          type: integer
+          format: int64
+        toRoomId:
+          type: integer
+          format: int64
+
+    PartialReturnSettlementRequest:
+      type: object
+      required: [contractId, returnedRoomIds]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+        returnedRoomIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    FullReturnSettlementRequest:
+      type: object
+      required: [contractId]
+      properties:
+        contractId:
+          type: integer
+          format: int64
+
+    DailyDeductionRequest:
+      type: object
+      required: [roomId, settlementDate, totalAmount, tenantApportionments]
+      properties:
+        roomId:
+          type: integer
+          format: int64
+        settlementDate:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+          format: double
+        enterpriseCoverAmount:
+          type: number
+          format: double
+          description: 企业子余额应承担金额（metering 计算）
+        tenantApportionments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantApportionmentInput'
+
+    TenantApportionmentInput:
+      type: object
+      required: [tenantId, stayId, amount]
+      properties:
+        tenantId:
+          type: integer
+          format: int64
+        stayId:
+          type: integer
+          format: int64
+        amount:
+          type: number
+          format: double
+
+    CreateBillResult:
+      type: object
+      required: [billId]
+      properties:
+        billId:
+          type: integer
+          format: int64
+        billingServiceBillId:
+          type: integer
+          format: int64
+        paymentUrl:
+          type: string
+
+    DepositSettlementResult:
+      type: object
+      required: [refundBillId, refundAmount]
+      properties:
+        refundBillId:
+          type: integer
+          format: int64
+        refundAmount:
+          type: number
+          format: double
+
+    TransferSubBalanceResult:
+      type: object
+      required: [migratedAmount]
+      properties:
+        migratedAmount:
+          type: number
+          format: double
+
+    SettlementInitiatedResult:
+      type: object
+      required: [settlementId]
+      properties:
+        settlementId:
+          type: integer
+          format: int64
+        message:
+          type: string
+
+    DailyDeductionResult:
+      type: object
+      required: [enterpriseDeducted, tenantsDeducted, shortfall]
+      properties:
+        enterpriseDeducted:
+          type: number
+          format: double
+        tenantsDeducted:
+          type: number
+          format: double
+        shortfall:
+          type: number
+          format: double
+          description: 余额不足的欠费金额（0 表示全额扣款）

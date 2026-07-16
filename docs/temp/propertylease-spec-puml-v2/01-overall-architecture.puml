@@ -1,0 +1,56 @@
+@startuml
+title Property Lease System - Overall Architecture (Revised)
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+package "Access Layer" {
+  [Mini Program]
+  [STAFF Console]
+}
+
+package "Business Modules" {
+  [IAM]
+  [Asset]
+  [Customer]
+  [Contract]
+  [Occupancy]
+  [Metering]
+  [Accounting]
+  [Payment]
+}
+
+package "External" {
+  [Third-party Payment]
+  [Door Lock Platform]
+  [Meter Device Platform]
+}
+
+[Mini Program] --> [IAM]
+[STAFF Console] --> [IAM]
+
+[STAFF Console] --> [Contract]
+[STAFF Console] --> [Occupancy]
+[Mini Program] --> [Occupancy]
+[Mini Program] --> [Accounting]
+
+[Contract] --> [Asset] : validate rooms / devices ready
+[Contract] --> [Customer] : enterprise / tenant master data
+[Contract] --> [Accounting] : create enterprise sign bill
+
+[Occupancy] --> [Contract] : contract eligibility
+[Occupancy] --> [Customer] : tenant identity
+[Occupancy] --> [Asset] : room capacity / lockable room
+[Occupancy] --> [Metering] : capture check-in/out anchors
+[Occupancy] --> [Accounting] : personal deposit bill / deposit eligibility
+[Occupancy] --> [Door Lock Platform] : issue / revoke credential
+
+[Metering] --> [Asset] : room-device binding
+[Metering] --> [Occupancy] : actual checked-in stays by day
+[Metering] --> [Accounting] : daily deduction plan
+
+[Accounting] --> [Payment] : create payment order
+[Payment] --> [Third-party Payment]
+[Payment] --> [Accounting] : payment success callback
+[Metering] --> [Meter Device Platform] : sync readings
+@enduml
