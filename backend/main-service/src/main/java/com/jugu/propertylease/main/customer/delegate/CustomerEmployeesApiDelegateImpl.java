@@ -8,7 +8,7 @@ import com.jugu.propertylease.main.api.model.EmployeeQueryRequest;
 import com.jugu.propertylease.main.api.model.UpdateEmployeeRequest;
 import com.jugu.propertylease.main.customer.api.model.CustomerEmployeeInfo;
 import com.jugu.propertylease.main.customer.service.CustomerService;
-import com.jugu.propertylease.security.service.AuthUserContext;
+import com.jugu.propertylease.security.context.CurrentUser;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,7 +22,7 @@ public class CustomerEmployeesApiDelegateImpl implements CustomerEmployeesApiDel
 
     @Override
     public Employee createEmployee(CreateEmployeeRequest request) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         Long id = customerService.createEmployee(
                 request.getEnterpriseId(),
                 request.getName(),
@@ -35,16 +35,16 @@ public class CustomerEmployeesApiDelegateImpl implements CustomerEmployeesApiDel
     @Override
     public EmployeePageResult queryEmployees(EmployeeQueryRequest request) {
         String status = request.getStatus() != null ? request.getStatus().getValue() : null;
-        int page = request.getPage() != null ? request.getPage() : 1;
-        int size = request.getSize() != null ? request.getSize() : 20;
+        int page = request.getPageNo() != null ? request.getPageNo() : 1;
+        int size = request.getPageSize() != null ? request.getPageSize() : 20;
 
         var result = customerService.queryEmployees(request.getEnterpriseId(), status, page, size);
 
         return new EmployeePageResult()
                 .items(result.items().stream().map(this::toApiModel).toList())
-                .total(result.total())
-                .page(page)
-                .size(size);
+                .total((long) result.total())
+                .pageNo(page)
+                .pageSize(size);
     }
 
     @Override

@@ -28,10 +28,13 @@ import java.util.List;
  * DRAFT ──confirmContract──▶ SIGN_BILL_PENDING ──(onSignBillPaid 回调)──▶ READY_FOR_CHECK_IN
  *   │                              │                                         │
  *   └──────────cancel──────────────┘                                 applyPartialReturn
+ *                                                                     （可多次，含从 PARTIALLY_RETURNED 继续退）
  *                                                                             │
  *                                                                   PARTIALLY_RETURNED
  *                                                                             │
- *                                                                     applyFullReturn
+ *                                            applyFullReturn / 部分退退完全部房间（自动整体结算）
+ *                                                                             ▼
+ *                                                                     FULLY_RETURNED
  *                                                                             ▼
  *                                                                         SETTLING
  *                                                                             │(onSettlementCompleted 回调)
@@ -52,6 +55,7 @@ public class ContractLifecycleService {
     public static final String STATUS_SIGN_BILL_PENDING = "SIGN_BILL_PENDING";
     public static final String STATUS_READY_FOR_CHECK_IN = "READY_FOR_CHECK_IN";
     public static final String STATUS_PARTIALLY_RETURNED = "PARTIALLY_RETURNED";
+    public static final String STATUS_FULLY_RETURNED = "FULLY_RETURNED";
     public static final String STATUS_SETTLING = "SETTLING";
     public static final String STATUS_COMPLETED = "COMPLETED";
     public static final String STATUS_CANCELLED = "CANCELLED";
@@ -214,8 +218,13 @@ public class ContractLifecycleService {
     @Transactional
     public void applyPartialReturn(Long contractId, List<Long> contractRoomIds, Long operatorId) {
         Contract contract = requireContract(contractId);
-        requireStatus(contract, STATUS_READY_FOR_CHECK_IN,
-                "仅 READY_FOR_CHECK_IN 状态可部分退房（PARTIALLY_RETURNED 状态请走 applyFullReturn 结束合同）");
+        if (!STATUS_READY_FOR_CHECK_IN.equals(contract.getStatus())
+                && !STATUS_PARTIALLY_RETURNED.equals(contract.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "CONTRACT_STATUS_INVALID",
+                    "仅 READY_FOR_CHECK_IN / PARTIALLY_RETURNED 状态可部分退房，当前："
+                            + contract.getStatus());
+        }
 
         if (contractRoomIds == null || contractRoomIds.isEmpty()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
@@ -251,7 +260,20 @@ public class ContractLifecycleService {
             repo.updateRoomStatus(room.getId(), ROOM_STATUS_RETURNED, now, now);
         }
 
-        repo.updateStatus(contractId, STATUS_PARTIALLY_RETURNED, now);
+        // spec 7.6 步骤 4：所有房间均 RETURNED → FULLY_RETURNED，否则 PARTIALLY_RETURNED
+        boolean allReturned = repo.findRoomsByContract(contractId, ROOM_STATUS_ACTIVE).isEmpty();
+        if (!allReturned) {
+            repo.updateStatus(contractId, STATUS_PARTIALLY_RETURNED, now);
+            return;
+        }
+
+        // 全部退完：自动触发整体结算（企业押金退还），与 applyFullReturn 同流程。
+        // 各房间账户已在 settlePartialReturn 逐房结清，settleFullReturn 步骤 1 为空转，安全。
+        repo.updateStatus(contractId, STATUS_FULLY_RETURNED, now);
+        repo.updateStatus(contractId, STATUS_SETTLING, now);
+        accountingCommandPort.settleFullReturn(contractId);
+        // settleFullReturn 目前是同步 stub 实现，直接视为完成（同 applyFullReturn 注释）
+        repo.updateStatus(contractId, STATUS_COMPLETED, now);
     }
 
     // ══════════════════════════════════════════════════════════════════════

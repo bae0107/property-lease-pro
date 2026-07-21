@@ -8,7 +8,7 @@ import com.jugu.propertylease.main.api.model.EnterpriseQueryRequest;
 import com.jugu.propertylease.main.api.model.UpdateEnterpriseRequest;
 import com.jugu.propertylease.main.customer.api.model.CustomerEnterpriseInfo;
 import com.jugu.propertylease.main.customer.service.CustomerService;
-import com.jugu.propertylease.security.service.AuthUserContext;
+import com.jugu.propertylease.security.context.CurrentUser;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,7 +24,7 @@ public class CustomerEnterprisesApiDelegateImpl implements CustomerEnterprisesAp
 
     @Override
     public Enterprise createEnterprise(CreateEnterpriseRequest request) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         Long id = customerService.createEnterprise(
                 request.getName(),
                 request.getContactName(),
@@ -32,22 +32,22 @@ public class CustomerEnterprisesApiDelegateImpl implements CustomerEnterprisesAp
                 request.getRemark(),
                 operatorId
         );
-        return customerService.getEnterprise(id).let(this::toApiModel);
+        return toApiModel(customerService.getEnterprise(id));
     }
 
     @Override
     public EnterprisePageResult queryEnterprises(EnterpriseQueryRequest request) {
         String status = request.getStatus() != null ? request.getStatus().getValue() : null;
-        int page = request.getPage() != null ? request.getPage() : 1;
-        int size = request.getSize() != null ? request.getSize() : 20;
+        int page = request.getPageNo() != null ? request.getPageNo() : 1;
+        int size = request.getPageSize() != null ? request.getPageSize() : 20;
 
         var result = customerService.queryEnterprises(status, page, size);
 
         return new EnterprisePageResult()
                 .items(result.items().stream().map(this::toApiModel).toList())
-                .total(result.total())
-                .page(page)
-                .size(size);
+                .total((long) result.total())
+                .pageNo(page)
+                .pageSize(size);
     }
 
     @Override

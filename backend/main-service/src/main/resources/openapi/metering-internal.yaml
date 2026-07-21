@@ -4,17 +4,20 @@ info:
   version: 1.0.0
   description: |
     metering 模块内部接口。
-    允许调用方：device-service（IoT 读数推送）、main-service 内部模块（occupancy 触发锚点读数采集）。
+    允许调用方：device-service（IoT 读数推送）。
+    其余模块间调用（如 occupancy 触发锚点读数采集）一律通过 metering/api 下的
+    Port Interface 完成，不走 HTTP。
 servers:
   - url: /internal/v1
 tags:
-  - name: internal-metering
+  - name: InternalMetering
+    description: device-service 读数推送
 
 paths:
 
   /metering/readings/iot-push:
     post:
-      tags: [internal-metering]
+      tags: [InternalMetering]
       operationId: pushIotReading
       summary: Device Service 推送 IoT 水电读数
       description: |
@@ -32,74 +35,21 @@ paths:
           description: 处理成功（含幂等重复推送）
         '400':
           description: 参数错误 / 房间无活跃绑定
-          content:
-            application/json:
-              schema:
-                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
-
-  /metering/anchors/check-in:
-    post:
-      tags: [internal-metering]
-      operationId: collectCheckInReadings
-      summary: 采集入住锚点读数（由 occupancy checkIn 编排时调用）
-      description: |
-        为指定 stay 采集所有表计的当前读数，建立 CHECK_IN 类型 SettlementAnchor。
-        若房间有多个表计（WATER / ELECTRICITY / HOT_WATER），逐一采集后共享同一 readingGroupId。
-        读数来源：
-        - IoT 设备实时拉取（通过 device-service）
-        - 若设备离线则接受 staff 人工录入值（requestBody 中 manualReadings 字段）
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CollectAnchorReadingsRequest'
-      responses:
-        '200':
-          description: 采集成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AnchorReadingsResult'
-        '400':
-          description: 参数错误 / 设备未绑定且未提供人工读数
-          content:
-            application/json:
-              schema:
-                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
-
-  /metering/anchors/check-out:
-    post:
-      tags: [internal-metering]
-      operationId: collectCheckOutReadings
-      summary: 采集退宿锚点读数（由 occupancy checkOut / transfer 编排时调用）
-      description: |
-        为指定 stay 采集所有表计的退宿读数，建立 CHECK_OUT 类型 SettlementAnchor。
-        返回该 stay 入住期间的完整用量摘要（供结算参考）。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CollectAnchorReadingsRequest'
-      responses:
-        '200':
-          description: 采集成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AnchorReadingsResult'
 
 components:
   schemas:
 
     IotReadingPushRequest:
       type: object
-      required: [deviceIdRaw, meterType, readingValue, readingTime]
+      required: [deviceIdRaw, roomId, meterType, readingValue, readingTime]
       properties:
         deviceIdRaw:
           type: string
           description: IoT 设备原始标识（幂等键之一）
+        roomId:
+          type: integer
+          format: int64
+          description: 房间 ID（device-service 已解析绑定关系）
         meterType:
           type: string
           enum: [WATER, ELECTRICITY, HOT_WATER]
@@ -110,90 +60,3 @@ components:
         readingTime:
           type: string
           format: date-time
-
-    CollectAnchorReadingsRequest:
-      type: object
-      required: [stayId, roomId, anchorType]
-      properties:
-        stayId:
-          type: integer
-          format: int64
-        roomId:
-          type: integer
-          format: int64
-        anchorType:
-          type: string
-          enum: [CHECK_IN, CHECK_OUT]
-        manualReadings:
-          type: array
-          description: 设备离线时的人工录入读数（可选）
-          items:
-            $ref: '#/components/schemas/ManualReadingInput'
-        operatorId:
-          type: integer
-          format: int64
-
-    ManualReadingInput:
-      type: object
-      required: [meterType, readingValue]
-      properties:
-        meterType:
-          type: string
-          enum: [WATER, ELECTRICITY, HOT_WATER]
-        readingValue:
-          type: number
-          format: double
-
-    AnchorReadingsResult:
-      type: object
-      required: [readingGroupId, anchorId, readings]
-      properties:
-        readingGroupId:
-          type: string
-        anchorId:
-          type: integer
-          format: int64
-        readings:
-          type: array
-          items:
-            $ref: '#/components/schemas/ReadingSummary'
-        usageSinceCheckIn:
-          description: CHECK_OUT 时返回，入住期间累计用量
-          type: array
-          items:
-            $ref: '#/components/schemas/UsageSummary'
-
-    ReadingSummary:
-      type: object
-      required: [meterType, readingValue, readingTime, source]
-      properties:
-        meterType:
-          type: string
-        readingValue:
-          type: number
-          format: double
-        readingTime:
-          type: string
-          format: date-time
-        source:
-          type: string
-          enum: [IOT, MANUAL]
-
-    UsageSummary:
-      type: object
-      required: [meterType, totalUsage, totalAmount]
-      properties:
-        meterType:
-          type: string
-        totalUsage:
-          type: number
-          format: double
-        totalAmount:
-          type: number
-          format: double
-        alreadyDeducted:
-          type: number
-          format: double
-        outstanding:
-          type: number
-          format: double

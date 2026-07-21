@@ -38,7 +38,7 @@ public class AccountingQueryService {
     // ── Bill ────────────────────────────────────────────────────────────────
 
     public Bill getBillById(Long id) {
-        return repo.findById(id).orElseThrow(() -> new BusinessException(
+        return repo.findBillById(id).orElseThrow(() -> new BusinessException(
                 HttpStatus.NOT_FOUND, "BILL_NOT_FOUND", "账单不存在：" + id));
     }
 
@@ -65,8 +65,7 @@ public class AccountingQueryService {
     // ── DepositLedger ────────────────────────────────────────────────────────
 
     public DepositLedger getDepositLedgerById(Long id) {
-        return repo.findAll(null, null, null, 0, Integer.MAX_VALUE)
-                .stream().filter(d -> d.getId().equals(id)).findFirst()
+        return repo.findLedgerById(id)
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.NOT_FOUND, "DEPOSIT_LEDGER_NOT_FOUND", "押金台账不存在：" + id));
     }

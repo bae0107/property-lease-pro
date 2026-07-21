@@ -16,7 +16,15 @@
                   <forcedType>
                     <converter>com.jugu.propertylease.common.jooq.ShanghaiOffsetDateTimeConverter
                     </converter>
-                    <includeExpression>(?i:PUBLIC\.IAM_.*\..*_AT)
+                    <includeExpression>(?i:PUBLIC\..*\..*(_AT|_TIME))
+                    </includeExpression>
+                    <objectType>COLUMN</objectType>
+                    <userType>java.time.OffsetDateTime</userType>
+                  </forcedType>
+                  <forcedType>
+                    <converter>com.jugu.propertylease.common.jooq.ShanghaiOffsetDateTimeConverter
+                    </converter>
+                    <includeExpression>(?i:PUBLIC\.(ROOM_INFO|BUILDING_INFO)\..*TIME)
                     </includeExpression>
                     <objectType>COLUMN</objectType>
                     <userType>java.time.OffsetDateTime</userType>

@@ -42,9 +42,9 @@ public class ContractRoomsApiDelegateImpl implements ContractRoomsApiDelegate {
 
         return new ContractRoomPageResult()
                 .items(items.stream().map(this::toApiRoom).toList())
-                .total(total)
-                .page(page)
-                .size(size);
+                .total((long) total)
+                .pageNo(page)
+                .pageSize(size);
     }
 
     private com.jugu.propertylease.main.api.model.ContractRoom toApiRoom(ContractRoom r) {

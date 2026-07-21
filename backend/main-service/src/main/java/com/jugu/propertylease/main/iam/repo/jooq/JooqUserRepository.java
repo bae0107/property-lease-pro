@@ -55,6 +55,17 @@ public class JooqUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<IamUser> findActiveByMobileAndType(String mobile, String userType) {
+        return Optional.ofNullable(
+                dsl.selectFrom(IAM_USER)
+                        .where(IAM_USER.MOBILE.eq(mobile))
+                        .and(IAM_USER.USER_TYPE.eq(userType))
+                        .and(IAM_USER.DELETED_AT.isNull())
+                        .fetchOneInto(IamUser.class)
+        );
+    }
+
+    @Override
     public Optional<UserBaseInfo> findActiveBaseById(Long userId) {
         return dsl.select(IAM_USER.USER_TYPE, IAM_USER.SOURCE_TYPE)
                 .from(IAM_USER)

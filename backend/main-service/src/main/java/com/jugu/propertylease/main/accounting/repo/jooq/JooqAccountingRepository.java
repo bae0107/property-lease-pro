@@ -77,6 +77,14 @@ public class JooqAccountingRepository
     }
 
     @Override
+    public List<RoomAccount> findActiveByContractId(Long contractId) {
+        return dsl.selectFrom(ROOM_ACCOUNT)
+                .where(ROOM_ACCOUNT.CURRENT_CONTRACT_ID.eq(contractId))
+                .and(ROOM_ACCOUNT.STATUS.eq("ACTIVE"))
+                .fetchInto(RoomAccount.class);
+    }
+
+    @Override
     public void updateStatus(Long id, String status, OffsetDateTime now) {
         dsl.update(ROOM_ACCOUNT)
                 .set(ROOM_ACCOUNT.STATUS, status)
@@ -203,6 +211,20 @@ public class JooqAccountingRepository
         return dsl.fetchCount(ROOM_ACCOUNT_ENTRY, cond);
     }
 
+    @Override
+    public List<OwnerArrears> sumInsufficientByOwner(Long roomAccountId) {
+        var arrears = DSL.sum(ROOM_ACCOUNT_ENTRY.AMOUNT.neg()).as("arrears");
+        return dsl.select(ROOM_ACCOUNT_ENTRY.OWNER_TYPE, ROOM_ACCOUNT_ENTRY.OWNER_ID, arrears)
+                .from(ROOM_ACCOUNT_ENTRY)
+                .where(ROOM_ACCOUNT_ENTRY.ROOM_ACCOUNT_ID.eq(roomAccountId))
+                .and(ROOM_ACCOUNT_ENTRY.ENTRY_TYPE.eq("INSUFFICIENT"))
+                .groupBy(ROOM_ACCOUNT_ENTRY.OWNER_TYPE, ROOM_ACCOUNT_ENTRY.OWNER_ID)
+                .fetch(r -> new OwnerArrears(
+                        r.get(ROOM_ACCOUNT_ENTRY.OWNER_TYPE),
+                        r.get(ROOM_ACCOUNT_ENTRY.OWNER_ID),
+                        r.get(arrears)));
+    }
+
     // ── Bill ────────────────────────────────────────────────────────────────
 
     @Override
@@ -227,7 +249,7 @@ public class JooqAccountingRepository
     }
 
     @Override
-    public Optional<Bill> findById(Long id) {
+    public Optional<Bill> findBillById(Long id) {
         return Optional.ofNullable(dsl.selectFrom(BILL)
                 .where(BILL.ID.eq(id))
                 .fetchOneInto(Bill.class));
@@ -358,6 +380,13 @@ public class JooqAccountingRepository
         Condition cond = DEPOSIT_LEDGER.CONTRACT_ID.eq(contractId);
         if (depositType != null) cond = cond.and(DEPOSIT_LEDGER.DEPOSIT_TYPE.eq(depositType));
         return dsl.selectFrom(DEPOSIT_LEDGER).where(cond).fetchInto(DepositLedger.class);
+    }
+
+    @Override
+    public Optional<DepositLedger> findLedgerById(Long id) {
+        return Optional.ofNullable(dsl.selectFrom(DEPOSIT_LEDGER)
+                .where(DEPOSIT_LEDGER.ID.eq(id))
+                .fetchOneInto(DepositLedger.class));
     }
 
     @Override

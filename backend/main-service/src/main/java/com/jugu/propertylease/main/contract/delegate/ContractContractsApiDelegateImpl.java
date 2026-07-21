@@ -14,7 +14,7 @@ import com.jugu.propertylease.main.contract.service.CreateDraftCommand;
 import com.jugu.propertylease.main.jooq.tables.pojos.Contract;
 import com.jugu.propertylease.main.jooq.tables.pojos.ContractChargeRule;
 import com.jugu.propertylease.main.jooq.tables.pojos.ContractRoom;
-import com.jugu.propertylease.security.service.AuthUserContext;
+import com.jugu.propertylease.security.context.CurrentUser;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -33,7 +33,7 @@ public class ContractContractsApiDelegateImpl implements ContractContractsApiDel
 
     @Override
     public ContractDetail createContract(CreateContractRequest request) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
 
         var rooms = request.getRooms().stream()
                 .map(r -> new CreateContractRoomCommand(r.getRoomId(), r.getSignedRent(),
@@ -66,9 +66,9 @@ public class ContractContractsApiDelegateImpl implements ContractContractsApiDel
 
         return new ContractPageResult()
                 .items(items.stream().map(this::toApiContract).toList())
-                .total(total)
-                .page(page)
-                .size(size);
+                .total((long) total)
+                .pageNo(page)
+                .pageSize(size);
     }
 
     @Override
@@ -81,28 +81,28 @@ public class ContractContractsApiDelegateImpl implements ContractContractsApiDel
 
     @Override
     public ContractDetail confirmContract(Long id) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         var result = lifecycleService.confirmContract(id, operatorId);
         return toContractDetail(result.contract(), result.rooms(), result.chargeRules());
     }
 
     @Override
     public ContractDetail cancelContract(Long id) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         lifecycleService.cancel(id, operatorId);
         return getContract(id);
     }
 
     @Override
     public ContractDetail applyPartialReturn(Long id, PartialReturnRequest request) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         lifecycleService.applyPartialReturn(id, request.getContractRoomIds(), operatorId);
         return getContract(id);
     }
 
     @Override
     public ContractDetail applyFullReturn(Long id) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         lifecycleService.applyFullReturn(id, operatorId);
         return getContract(id);
     }

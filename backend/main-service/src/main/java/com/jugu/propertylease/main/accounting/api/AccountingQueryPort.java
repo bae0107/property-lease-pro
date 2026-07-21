@@ -1,5 +1,7 @@
 package com.jugu.propertylease.main.accounting.api;
 
+import com.jugu.propertylease.main.accounting.api.model.DepositLedgerInfo;
+
 import java.math.BigDecimal;
 
 /**

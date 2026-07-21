@@ -28,6 +28,11 @@ public interface UserRepository {
     Optional<IamUser> findActiveById(Long userId);
 
     /**
+     * 按手机号 + 用户类型查询未删除用户（IamTenantPort 幂等查找用）。
+     */
+    Optional<IamUser> findActiveByMobileAndType(String mobile, String userType);
+
+    /**
      * 查询未删除用户的轻量快照（userType + sourceType），用于业务前置校验。
      * 避免为校验而加载整个 IamUser POJO。
      */

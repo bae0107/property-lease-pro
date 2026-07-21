@@ -50,9 +50,7 @@ public class AssetQueryPortImpl implements AssetQueryPort {
                 .and(ROOM_INFO.ISDELETED.eq(1))    // 1 = 未删除（propertymgr 约定）
                 .fetchOptional(r -> new AssetRoomInfo(
                         r.get(ROOM_INFO.ROOMID),
-                        r.get(BUILDING_INFO.STOREID) != null
-                                ? Long.parseLong(r.get(BUILDING_INFO.STOREID))
-                                : null,
+                        r.get(BUILDING_INFO.STOREID),
                         buildRoomNo(r.get(ROOM_INFO.LEVEL), r.get(ROOM_INFO.ROOMNUM)),
                         r.get(ROOM_INFO.LIVINGNUM) != null ? r.get(ROOM_INFO.LIVINGNUM) : 1,
                         r.get(ROOM_INFO.ROOMSTATUS)
@@ -77,9 +75,7 @@ public class AssetQueryPortImpl implements AssetQueryPort {
                 .and(ROOM_INFO.ISDELETED.eq(1))
                 .fetch(r -> new AssetRoomInfo(
                         r.get(ROOM_INFO.ROOMID),
-                        r.get(BUILDING_INFO.STOREID) != null
-                                ? Long.parseLong(r.get(BUILDING_INFO.STOREID))
-                                : null,
+                        r.get(BUILDING_INFO.STOREID),
                         buildRoomNo(r.get(ROOM_INFO.LEVEL), r.get(ROOM_INFO.ROOMNUM)),
                         r.get(ROOM_INFO.LIVINGNUM) != null ? r.get(ROOM_INFO.LIVINGNUM) : 1,
                         r.get(ROOM_INFO.ROOMSTATUS)
@@ -98,13 +94,12 @@ public class AssetQueryPortImpl implements AssetQueryPort {
 
     @Override
     public Long getStoreIdByRoomId(Long roomId) {
-        String storeId = dsl.select(BUILDING_INFO.STOREID)
+        return dsl.select(BUILDING_INFO.STOREID)
                 .from(ROOM_INFO)
                 .join(BUILDING_INFO).on(ROOM_INFO.BUILDINGID.eq(BUILDING_INFO.BUILDINGID))
                 .where(ROOM_INFO.ROOMID.eq(roomId))
                 .and(ROOM_INFO.ISDELETED.eq(1))
-                .fetchOneInto(String.class);
-        return storeId != null ? Long.parseLong(storeId) : null;
+                .fetchOne(BUILDING_INFO.STOREID);
     }
 
     @Override

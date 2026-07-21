@@ -1,6 +1,7 @@
 package com.jugu.propertylease.main.contract.api;
 
 import com.jugu.propertylease.main.contract.service.ContractLifecycleService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 /**
@@ -12,7 +13,9 @@ public class ContractCallbackPortImpl implements ContractCallbackPort {
 
     private final ContractLifecycleService lifecycleService;
 
-    public ContractCallbackPortImpl(ContractLifecycleService lifecycleService) {
+    // @Lazy 打破构造器循环依赖：ContractLifecycleService → AccountingCommandPort(AccountingService)
+    //   → ContractCallbackPort(本类) → ContractLifecycleService
+    public ContractCallbackPortImpl(@Lazy ContractLifecycleService lifecycleService) {
         this.lifecycleService = lifecycleService;
     }
 

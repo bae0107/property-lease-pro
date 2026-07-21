@@ -62,8 +62,8 @@ public class ScheduleTasksApiDelegateImpl implements ScheduleTasksApiDelegate {
 
     @Override
     public TaskLogPageResult queryTaskLogs(TaskLogQueryRequest request) {
-        int page = request.getPage() != null ? request.getPage() : 1;
-        int size = request.getSize() != null ? request.getSize() : 20;
+        int page = request.getPageNo() != null ? request.getPageNo() : 1;
+        int size = request.getPageSize() != null ? request.getPageSize() : 20;
         String taskType = request.getTaskType() != null ? request.getTaskType().getValue() : null;
         String status   = request.getStatus()   != null ? request.getStatus().getValue()   : null;
 
@@ -75,18 +75,20 @@ public class ScheduleTasksApiDelegateImpl implements ScheduleTasksApiDelegate {
 
         return new TaskLogPageResult()
                 .items(logs.stream().map(this::toModel).toList())
-                .total(total).page(page).size(size);
+                .total((long) total).pageNo(page).pageSize(size);
     }
 
-    private ScheduleTaskLog_ toModel(Object raw) {
+    private com.jugu.propertylease.main.api.model.ScheduleTaskLog toModel(Object raw) {
         ScheduleTaskLog log = (ScheduleTaskLog) raw;
-        return new ScheduleTaskLog_()
+        return new com.jugu.propertylease.main.api.model.ScheduleTaskLog()
                 .id(log.getId())
-                .taskType(ScheduleTaskLog_.TaskTypeEnum.fromValue(log.getTaskType()))
+                .taskType(log.getTaskType())
                 .scheduledDate(log.getScheduledDate())
-                .status(ScheduleTaskLog_.StatusEnum.fromValue(log.getStatus()))
+                .status(com.jugu.propertylease.main.api.model.ScheduleTaskLog.StatusEnum
+                        .fromValue(log.getStatus()))
                 .triggeredBy(log.getTriggeredBy() != null
-                        ? ScheduleTaskLog_.TriggeredByEnum.fromValue(log.getTriggeredBy()) : null)
+                        ? com.jugu.propertylease.main.api.model.ScheduleTaskLog.TriggeredByEnum
+                                .fromValue(log.getTriggeredBy()) : null)
                 .totalCount(log.getTotalCount())
                 .successCount(log.getSuccessCount())
                 .failureCount(log.getFailureCount())

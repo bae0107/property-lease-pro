@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         propertymgr 资产表：楼栋、房间
+         ⚠️ 本仓库历史上从未有过 room_info 建表语句（旧系统里房间表在独立的
+         propertymgr 服务中）。本文件据 propertymgr/api/AssetQueryPortImpl /
+         AssetCommandPortImpl 实际引用的列重建，列名沿用旧 propertymgr 的
+         camelCase 风格（与 011-015 新表的 snake_case 不同，属历史约定）。
+         约定：IsDeleted int，1 = 未删除（旧 propertymgr 约定，勿改成 0）。
+         时间列 CreateTime/UpdateTime 由 jOOQ forcedType
+         (?i:PUBLIC\.(ROOM_INFO|BUILDING_INFO)\..*TIME) 映射为 OffsetDateTime。
+         ========================================================= -->
+
+    <changeSet id="016-building-info" author="dev">
+        <createTable tableName="building_info" remarks="楼栋信息">
+            <column name="BuildingId" type="VARCHAR(30)" remarks="楼栋主键Id（业务内部）">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="StoreId" type="BIGINT" remarks="绑定门店ID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="BuildingName" type="VARCHAR(64)" remarks="楼栋名称"/>
+            <column name="IsDeleted" type="INT" defaultValue="1" remarks="1=未删除">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CreateTime" type="DATETIME(3)"/>
+            <column name="UpdateTime" type="DATETIME(3)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="016-room-info" author="dev">
+        <createTable tableName="room_info" remarks="房间信息">
+            <column name="RoomId" type="BIGINT" autoIncrement="true" remarks="房间主键Id">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="BuildingId" type="VARCHAR(30)" remarks="building_info.BuildingId">
+                <constraints nullable="false"/>
+            </column>
+            <column name="Level" type="VARCHAR(10)" remarks="楼层"/>
+            <column name="RoomNum" type="VARCHAR(20)" remarks="房号"/>
+            <column name="LivingNum" type="INT" remarks="可住人数（null/0 按 1 处理）"/>
+            <column name="RoomStatus" type="VARCHAR(30)" remarks="EMPTY|WAIT_CHECK_IN（Provisional）"/>
+            <column name="IsDeleted" type="INT" defaultValue="1" remarks="1=未删除">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CreateTime" type="DATETIME(3)"/>
+            <column name="UpdateTime" type="DATETIME(3)"/>
+        </createTable>
+        <createIndex tableName="room_info" indexName="idx_room_info_building">
+            <column name="BuildingId"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

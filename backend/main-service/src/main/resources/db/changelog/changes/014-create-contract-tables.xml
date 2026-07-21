@@ -46,8 +46,8 @@
         <createIndex tableName="contract" indexName="idx_contract_enterprise">
             <column name="enterprise_id"/>
         </createIndex>
-        <createIndex tableName="contract" indexName="idx_contract_status_end_date"
-            remarks="findExpiringContracts 用">
+        <!-- findExpiringContracts 用 -->
+        <createIndex tableName="contract" indexName="idx_contract_status_end_date">
             <column name="status"/>
             <column name="end_date"/>
         </createIndex>
@@ -80,8 +80,8 @@
         <createIndex tableName="contract_room" indexName="idx_croom_contract">
             <column name="contract_id"/>
         </createIndex>
-        <createIndex tableName="contract_room" indexName="idx_croom_room_status"
-            remarks="existsActiveContractRoom / isRoomAvailableForContract 用">
+        <!-- existsActiveContractRoom / isRoomAvailableForContract 用 -->
+        <createIndex tableName="contract_room" indexName="idx_croom_room_status">
             <column name="room_id"/>
             <column name="status"/>
         </createIndex>

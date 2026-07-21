@@ -53,7 +53,8 @@ public class AccountingService {
     public CreateBillResult createEnterpriseSignBill(EnterpriseSignBillCommand cmd) {
         OffsetDateTime now = OffsetDateTime.now();
 
-        // 1. 确保合同下的所有房间账户存在（confirmContract 时可能尚未入住，先激活账户）
+        // 1.
+      // （confirmContract 时可能尚未入住，先激活账户）
         // 注：房间列表由 contract 模块在调用前组装，此处按 contractId 统一处理
         // 房间账户在首次入住或签约时 upsert（合同维度的账户在此创建）
         // 实际房间账户由 occupancy.checkIn 时 upsertRoomAccount 创建；
@@ -280,6 +281,20 @@ public class AccountingService {
                                     billNo, sub.getAvailableBalance(), "退房水电余额退还"));
                 }
             }
+
+            // 欠费追缴：汇总 INSUFFICIENT 流水，为每个欠费方生成 SETTLEMENT_BILL（spec 10.2）
+            for (OwnerArrears arrears : repo.sumInsufficientByOwner(account.getId())) {
+                if (arrears.amount().compareTo(BigDecimal.ZERO) <= 0) continue;
+                String billNo = billNoGenerator.generate(BillNoGenerator.Prefix.SETTLEMENT);
+                repo.insert(billNo, "SETTLEMENT_BILL",
+                        arrears.ownerType(), arrears.ownerId(), contractId, roomId,
+                        "TENANT".equals(arrears.ownerType()) ? arrears.ownerId() : null,
+                        arrears.amount(), null, now);
+                billingServicePort.createBill(new BillingServicePort.BillingCreateCommand(
+                        billNo, arrears.amount(), "SETTLEMENT_BILL",
+                        "房间 #" + roomId + " 退房欠费追缴"));
+            }
+
             repo.updateStatus(account.getId(), "CLOSED", now);
         });
     }
@@ -431,6 +446,13 @@ public class AccountingService {
                     });
                 }
             }
+            case "SETTLEMENT_BILL" -> {
+                // 欠费账单支付完成：标记欠费处理完成，回调 contract 完成结算
+                // （markCompleted 内部有状态短路，settleFullReturn 已直接回调过时此处为幂等空操作）
+                if (bill.getContractId() != null) {
+                    contractCallbackPort.onSettlementCompleted(bill.getContractId());
+                }
+            }
         }
     }
 
@@ -476,11 +498,6 @@ public class AccountingService {
     }
 
     private List<RoomAccount> findActiveAccountsByContract(Long contractId) {
-        // 通过 room_account.current_contract_id 查找所有关联账户
-        // 此为内部方法，使用 repo DSL 查询
-        return repo.findByRoomId(null) == null ? List.of() : List.of(); // placeholder
-        // TODO: 在 JooqAccountingRepository 增加 findByContractId 方法
-        // 当前实现 settleFullReturn 依赖 contract 传入具体 roomId 列表
-        // 通过 PartialReturnCommand 包含 roomIds 来解决，对于 fullReturn 也改用 PartialReturnCommand
+        return repo.findActiveByContractId(contractId);
     }
 }

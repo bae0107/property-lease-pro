@@ -17,7 +17,7 @@ import com.jugu.propertylease.main.occupancy.service.CheckOutResult;
 import com.jugu.propertylease.main.occupancy.service.CheckOutService;
 import com.jugu.propertylease.main.occupancy.service.TransferOutcome;
 import com.jugu.propertylease.main.occupancy.service.TransferService;
-import com.jugu.propertylease.security.service.AuthUserContext;
+import com.jugu.propertylease.security.context.CurrentUser;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -43,7 +43,7 @@ public class OccupancyStaysApiDelegateImpl implements OccupancyStaysApiDelegate 
 
     @Override
     public StayDetail checkIn(CheckInRequest request) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         CheckInResult result = checkInService.checkIn(request.getAssignmentId(), operatorId);
         return toStayDetail(result.stay(), result.personalDepositBillId(),
                 result.personalDepositStatus());
@@ -51,8 +51,8 @@ public class OccupancyStaysApiDelegateImpl implements OccupancyStaysApiDelegate 
 
     @Override
     public StayPageResult queryStays(StayQueryRequest request) {
-        int page = request.getPage() != null ? request.getPage() : 1;
-        int size = request.getSize() != null ? request.getSize() : 20;
+        int page = request.getPageNo() != null ? request.getPageNo() : 1;
+        int size = request.getPageSize() != null ? request.getPageSize() : 20;
         String stayStatus = request.getStayStatus() != null
                 ? request.getStayStatus().getValue() : null;
 
@@ -63,9 +63,9 @@ public class OccupancyStaysApiDelegateImpl implements OccupancyStaysApiDelegate 
 
         return new StayPageResult()
                 .items(items.stream().map(this::toApiStay).toList())
-                .total(total)
-                .page(page)
-                .size(size);
+                .total((long) total)
+                .pageNo(page)
+                .pageSize(size);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class OccupancyStaysApiDelegateImpl implements OccupancyStaysApiDelegate 
 
     @Override
     public StayDetail checkOut(Long id) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         CheckOutResult result = checkOutService.checkOut(id, operatorId);
         DepositLedgerInfo deposit = findDepositLedgerSafely(result.stay());
         return toStayDetail(result.stay(),
@@ -91,7 +91,7 @@ public class OccupancyStaysApiDelegateImpl implements OccupancyStaysApiDelegate 
 
     @Override
     public TransferResult transferTenant(Long id, TransferTenantRequest request) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         TransferOutcome outcome = transferService.transferTenant(
                 id, request.getToContractRoomId(), operatorId);
         return new TransferResult()
@@ -134,7 +134,7 @@ public class OccupancyStaysApiDelegateImpl implements OccupancyStaysApiDelegate 
                 .contractRoomId(stay.getContractRoomId())
                 .roomId(stay.getRoomId())
                 .tenantId(stay.getTenantId())
-                .stayStatus(com.jugu.propertylease.main.api.model.Stay.StayStatusEnum
+                .stayStatus(StayDetail.StayStatusEnum
                         .fromValue(stay.getStayStatus()))
                 .checkInAt(stay.getCheckInAt())
                 .checkOutAt(stay.getCheckOutAt())

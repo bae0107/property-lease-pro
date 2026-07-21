@@ -9,7 +9,7 @@ import com.jugu.propertylease.main.contract.api.ContractRoomInfo;
 import com.jugu.propertylease.main.jooq.tables.pojos.RoomAssignment;
 import com.jugu.propertylease.main.occupancy.repo.OccupancyRepository;
 import com.jugu.propertylease.main.occupancy.service.AssignmentService;
-import com.jugu.propertylease.security.service.AuthUserContext;
+import com.jugu.propertylease.security.context.CurrentUser;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -30,7 +30,7 @@ public class OccupancyAssignmentsApiDelegateImpl implements OccupancyAssignments
     @Override
     public com.jugu.propertylease.main.api.model.RoomAssignment assignTenantToRoom(
             AssignTenantRequest request) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
 
         // 请求体只携带 contractRoomId + tenantId，contractId/roomId 由 contractRoomId 反查
         ContractRoomInfo contractRoom =
@@ -44,8 +44,8 @@ public class OccupancyAssignmentsApiDelegateImpl implements OccupancyAssignments
 
     @Override
     public AssignmentPageResult queryAssignments(AssignmentQueryRequest request) {
-        int page = request.getPage() != null ? request.getPage() : 1;
-        int size = request.getSize() != null ? request.getSize() : 20;
+        int page = request.getPageNo() != null ? request.getPageNo() : 1;
+        int size = request.getPageSize() != null ? request.getPageSize() : 20;
         String status = request.getStatus() != null ? request.getStatus().getValue() : null;
 
         var items = repo.findAssignments(request.getContractId(), request.getRoomId(),
@@ -55,14 +55,14 @@ public class OccupancyAssignmentsApiDelegateImpl implements OccupancyAssignments
 
         return new AssignmentPageResult()
                 .items(items.stream().map(this::toApiModel).toList())
-                .total(total)
-                .page(page)
-                .size(size);
+                .total((long) total)
+                .pageNo(page)
+                .pageSize(size);
     }
 
     @Override
     public com.jugu.propertylease.main.api.model.RoomAssignment cancelAssignment(Long id) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         assignmentService.cancelAssignment(id, operatorId);
         return toApiModel(repo.findAssignmentById(id).orElseThrow());
     }

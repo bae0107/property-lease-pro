@@ -48,9 +48,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MeterDeviceBinding'
+                $ref: '#/components/schemas/MeterDeviceBindingListResult'
 
     post:
       tags: [metering-bindings]
@@ -193,9 +191,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MeterPriceConfig'
+                $ref: '#/components/schemas/MeterPriceConfigListResult'
 
     post:
       tags: [metering-prices]
@@ -268,9 +264,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/TenantApportionment'
+                $ref: '#/components/schemas/TenantApportionmentListResult'
 
 components:
   schemas:
@@ -533,3 +527,30 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/RoomDailyCharge'
+
+    MeterDeviceBindingListResult:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeterDeviceBinding'
+
+    MeterPriceConfigListResult:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeterPriceConfig'
+
+    TenantApportionmentListResult:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantApportionment'

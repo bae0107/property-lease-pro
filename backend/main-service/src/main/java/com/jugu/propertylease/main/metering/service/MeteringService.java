@@ -5,6 +5,7 @@ import com.jugu.propertylease.main.accounting.api.AccountingQueryPort;
 import com.jugu.propertylease.main.accounting.api.model.DailyDeductionCommand;
 import com.jugu.propertylease.main.accounting.api.model.DailyDeductionResult;
 import com.jugu.propertylease.main.accounting.api.model.TenantDeductItem;
+import com.jugu.propertylease.main.contract.api.ContractQueryPort;
 import com.jugu.propertylease.main.jooq.tables.pojos.MeterDeviceBinding;
 import com.jugu.propertylease.main.jooq.tables.pojos.MeterReading;
 import com.jugu.propertylease.main.metering.api.*;
@@ -41,17 +42,20 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
     private final AssetQueryPort assetQueryPort;
     private final AccountingCommandPort accountingCommandPort;
     private final AccountingQueryPort accountingQueryPort;
+    private final ContractQueryPort contractQueryPort;
 
     public MeteringService(MeteringRepository repo,
                            OccupancyQueryPort occupancyQueryPort,
                            AssetQueryPort assetQueryPort,
                            AccountingCommandPort accountingCommandPort,
-                           AccountingQueryPort accountingQueryPort) {
+                           AccountingQueryPort accountingQueryPort,
+                           ContractQueryPort contractQueryPort) {
         this.repo = repo;
         this.occupancyQueryPort = occupancyQueryPort;
         this.assetQueryPort = assetQueryPort;
         this.accountingCommandPort = accountingCommandPort;
         this.accountingQueryPort = accountingQueryPort;
+        this.contractQueryPort = contractQueryPort;
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -288,8 +292,12 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
     }
 
     private Long resolveEnterpriseId(List<StayInfo> stays) {
-        // 通过 occupancy 的 contractId 间接取企业 ID（简化：返回 null，accounting 按 room 查）
-        return null;
+        // 同一房间的在住 Stay 必属同一合同（一个房间同时只有一个活跃合同），
+        // 取任一 Stay 的 contractId 反查企业即可；无在住时无法解析，返回 null（费用由租客分摊承担）。
+        if (stays.isEmpty()) {
+            return null;
+        }
+        return contractQueryPort.getContract(stays.get(0).contractId()).enterpriseId();
     }
 
     record RoomSettleResult(BigDecimal totalAmount, BigDecimal shortfall) {}

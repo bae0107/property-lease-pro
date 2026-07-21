@@ -41,13 +41,13 @@
             <column name="cancelled_by" type="BIGINT"/>
         </createTable>
 
-        <createIndex tableName="room_assignment" indexName="idx_ra_room_status"
-            remarks="容量校验（ASSIGNED+CHECKED_IN &lt; maxOccupancy）用">
+        <!-- 容量校验（ASSIGNED+CHECKED_IN &lt; maxOccupancy）用 -->
+        <createIndex tableName="room_assignment" indexName="idx_ra_room_status">
             <column name="room_id"/>
             <column name="status"/>
         </createIndex>
-        <createIndex tableName="room_assignment" indexName="idx_ra_croom_tenant"
-            remarks="防重复分配（findActiveAssignment）用">
+        <!-- 防重复分配（findActiveAssignment）用 -->
+        <createIndex tableName="room_assignment" indexName="idx_ra_croom_tenant">
             <column name="contract_room_id"/>
             <column name="tenant_id"/>
         </createIndex>
@@ -87,8 +87,8 @@
             <column name="updated_at" type="DATETIME(3)"><constraints nullable="false"/></column>
         </createTable>
 
-        <createIndex tableName="stay" indexName="idx_stay_room_status"
-            remarks="容量校验 / hasCheckedInStays 用">
+        <!-- 容量校验 / hasCheckedInStays 用 -->
+        <createIndex tableName="stay" indexName="idx_stay_room_status">
             <column name="room_id"/>
             <column name="stay_status"/>
         </createIndex>

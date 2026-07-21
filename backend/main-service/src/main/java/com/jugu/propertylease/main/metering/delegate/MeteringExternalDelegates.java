@@ -13,7 +13,7 @@ import com.jugu.propertylease.main.jooq.tables.pojos.TenantApportionment;
 import com.jugu.propertylease.main.metering.api.RecordReadingCommand;
 import com.jugu.propertylease.main.metering.repo.MeteringRepository;
 import com.jugu.propertylease.main.metering.service.MeteringService;
-import com.jugu.propertylease.security.service.AuthUserContext;
+import com.jugu.propertylease.security.context.CurrentUser;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -47,7 +47,7 @@ class MeteringBindingsApiDelegateImpl implements MeteringBindingsApiDelegate {
     @Override
     public com.jugu.propertylease.main.api.model.MeterDeviceBinding bindDevice(
             Long roomId, BindDeviceRequest req) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         svc.bindDevice(roomId,
                 req.getDeviceId(),
                 req.getMeterType().getValue(),
@@ -100,7 +100,7 @@ class MeteringReadingsApiDelegateImpl implements MeteringReadingsApiDelegate {
     @Override
     public com.jugu.propertylease.main.api.model.MeterReading submitMeterReading(
             SubmitReadingRequest req) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         svc.submitPeriodicReading(new RecordReadingCommand(
                 req.getRoomId(),
                 req.getMeterType().getValue(),
@@ -118,8 +118,8 @@ class MeteringReadingsApiDelegateImpl implements MeteringReadingsApiDelegate {
 
     @Override
     public ReadingPageResult queryMeterReadings(ReadingQueryRequest req) {
-        int page = req.getPage() != null ? req.getPage() : 1;
-        int size = req.getSize() != null ? req.getSize() : 20;
+        int page = req.getPageNo() != null ? req.getPageNo() : 1;
+        int size = req.getPageSize() != null ? req.getPageSize() : 20;
         String meterType  = req.getMeterType()  != null ? req.getMeterType().getValue()  : null;
         String anchorType = req.getAnchorType() != null ? req.getAnchorType().getValue() : null;
         String source     = req.getSource()     != null ? req.getSource().getValue()     : null;
@@ -132,7 +132,7 @@ class MeteringReadingsApiDelegateImpl implements MeteringReadingsApiDelegate {
 
         return new ReadingPageResult()
                 .items(readings.stream().map(this::toModel).toList())
-                .total(total).page(page).size(size);
+                .total((long) total).pageNo(page).pageSize(size);
     }
 
     private com.jugu.propertylease.main.api.model.MeterReading toModel(MeterReading r) {
@@ -179,7 +179,7 @@ class MeteringPricesApiDelegateImpl implements MeteringPricesApiDelegate {
     @Override
     public com.jugu.propertylease.main.api.model.MeterPriceConfig createMeterPrice(
             CreateMeterPriceRequest req) {
-        Long operatorId = AuthUserContext.currentUserId();
+        Long operatorId = CurrentUser.getCurrentUserId();
         svc.createMeterPrice(
                 req.getStoreId(),
                 req.getMeterType().getValue(),
@@ -218,8 +218,8 @@ class MeteringDailyChargesApiDelegateImpl implements MeteringDailyChargesApiDele
 
     @Override
     public DailyChargePageResult queryRoomDailyCharges(DailyChargeQueryRequest req) {
-        int page = req.getPage() != null ? req.getPage() : 1;
-        int size = req.getSize() != null ? req.getSize() : 20;
+        int page = req.getPageNo() != null ? req.getPageNo() : 1;
+        int size = req.getPageSize() != null ? req.getPageSize() : 20;
         String status = req.getStatus() != null ? req.getStatus().getValue() : null;
 
         List<RoomDailyCharge> charges = repo.findCharges(req.getRoomId(), status,
@@ -229,7 +229,7 @@ class MeteringDailyChargesApiDelegateImpl implements MeteringDailyChargesApiDele
 
         return new DailyChargePageResult()
                 .items(charges.stream().map(this::toModel).toList())
-                .total(total).page(page).size(size);
+                .total((long) total).pageNo(page).pageSize(size);
     }
 
     @Override
