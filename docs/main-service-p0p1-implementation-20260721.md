@@ -91,7 +91,22 @@
 
 验证：`mvn -pl main-service -am test -Dtest='...' -o` → Tests run: 7, Failures: 0, Errors: 0。
 
-## 8. 构建命令（本机）
+## 8. 启动冒烟（2026-07-22）
+
+`mvn -pl main-service spring-boot:run -o`（前置：`-am install -DskipTests` 刷新本地仓库上游 jar，否则 spring-boot:run 不带 -am 会命中过期 common jar）。
+
+过程修复 3 个启动问题：
+1. **旧 H2 库冲突**：`D:/h2data_gihub/PROPERTY_LEASE_MAIN` 里的表是已删除的 004-008 changelog 所建，新 changelog 重放建表报 table already exists → `application-local.yml` 改指 `PROPERTY_LEASE_MAIN_V2`（旧库保留未删）；
+2. **IAM bootstrap 缺密码**：`PermissionManifestBootstrap` 要求 `iam.bootstrap.users.iam-admin-initial-password` 非空 → local profile 配置 `admin123`（仅本地）；
+3. 循环依赖修复（@Lazy）验证有效，Bean 装配全部通过。
+
+验证结果：
+- `Started MainServiceApplication`，Tomcat 8081，Liquibase 全新库迁移成功；
+- `GET /v3/api-docs.yaml` 200、`/h2-console/` 200；
+- `POST /accounting/bills/query` → 403 无权限（mock user 只有 iam 权限，权限链正确拦截）；
+- `POST /iam/users/query` → 200，返回 bootstrap 预制的 iam_admin/iam_system，分页模型与 OffsetDateTime（+08:00）序列化正常。
+
+## 9. 构建命令（本机）
 
 ```bash
 export JAVA_HOME="/c/Users/A/.jdks/corretto-20.0.2.1"

@@ -5,7 +5,7 @@ spring:
       password: user
   # H2 内存数据库配置
   datasource:
-    url: jdbc:h2:file:D:/h2data_gihub/PROPERTY_LEASE_MAIN;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;TIME ZONE=Asia/Shanghai
+    url: jdbc:h2:file:D:/h2data_gihub/PROPERTY_LEASE_MAIN_V2;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;TIME ZONE=Asia/Shanghai
     driver-class-name: org.h2.Driver
     username: sa
     password: sa
@@ -65,6 +65,12 @@ security:
       - "iam:user:password:reset"
       - "iam:role:read"
       - "iam:role:write"
+
+# 本地启动预制 iam_admin 密码（PermissionManifestBootstrap 启动同步需要，仅 local）
+iam:
+  bootstrap:
+    users:
+      iam-admin-initial-password: admin123
   jwt:
     user:
       secret: local-user-jwt-secret-for-development-only
