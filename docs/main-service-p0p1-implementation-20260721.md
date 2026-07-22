@@ -74,13 +74,16 @@
 | 本轮实施范围 | P0 + P1（P2 顺延） |
 | 部分退房退完全部房间 | 自动触发整体结算（ FULLY_RETURNED → SETTLING → COMPLETED ） |
 
-## 6. 遗留 P2（下一轮）
+## 6. P2 实施记录（2026-07-22/23）
 
-1. **月租账单**：`ContractScheduleTrigger.checkAndGenerateRentBills` 未实现（MONTHLY_RENT 账单生成）；
-2. `queryRoomAccounts` 分页仍是空页 stub（RoomAccountRepository 缺分页列表查询）；
-3. `cancelBill` 缺状态校验（仅 PENDING 可取消）；
-4. 换宿余额迁移（TRANSFER_OUT / TRANSFER_IN）链路未端到端验证；
-5. billing-service / device-service 仍为 log-only stub，待真实 OpenAPI 规范后替换。
+1. **月租账单 checkAndGenerateRentBills**（已实现）：
+   - 设计决策（用户确认）：bill_type 新增 `RENT_BILL`（billNo 前缀 RNT，accounting-external.yaml 枚举同步补）；金额 = ACTIVE 房间 signed_rent 求和；每月 1 号出账（QUARTERLY 仅在与起租月相隔 3 的倍数的月份出 3 个月）；幂等 = 查询判重（同合同当月已有 PENDING/PAID RENT_BILL 则跳过，返回 null）。
+   - 改动：`AccountingCommandPort.createRentBill` + `RentBillCommand` record；`BillRepository.existsActiveBillForPeriod`；`AccountingService.createRentBill`（复用 billingServicePort.createBill 流程）；`ContractScheduleTrigger(Impl).checkAndGenerateRentBills`（单合同失败不阻断，当月幂等次日自重试）；`ContractRepository.findByStatuses`；`ScheduleTaskRunner` 新增 01:30 Cron `RENT_BILL_GENERATION`。
+   - UT：`ContractScheduleTriggerImplRentBillTest`（6 例全过：非 1 号空跑、MONTHLY 求和、QUARTERLY 季度月 ×3、非季度月跳过、零租金跳过、重复出账幂等）。
+2. **queryRoomAccounts 分页**（已实现）：`RoomAccountRepository.findAll/countAll`（roomId/contractId/status 过滤），Delegate 空页 stub 替换为真实查询。
+3. **cancelBill 状态校验**：经核查早已实现（AccountingQueryService.cancelBill 仅 PENDING 可作废，否则 409），无需改动。
+
+遗留：换宿余额迁移链路未端到端验证；billing-service / device-service 仍为 stub。
 
 ## 7. 单元测试（2026-07-21 补）
 

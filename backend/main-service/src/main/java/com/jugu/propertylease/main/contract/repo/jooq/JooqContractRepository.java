@@ -124,6 +124,13 @@ public class JooqContractRepository implements ContractRepository {
                 .fetchInto(Contract.class);
     }
 
+    @Override
+    public List<Contract> findByStatuses(List<String> statuses) {
+        return dsl.selectFrom(CONTRACT)
+                .where(CONTRACT.STATUS.in(statuses))
+                .fetchInto(Contract.class);
+    }
+
     // ── ContractRoom ────────────────────────────────────────────────────────
 
     @Override

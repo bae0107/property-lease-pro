@@ -330,7 +330,7 @@ components:
             billType:
               type: string
               enum: [ENTERPRISE_SIGN_BILL, PERSONAL_DEPOSIT_BILL,
-                     RECHARGE_BILL, SETTLEMENT_BILL, REFUND_BILL]
+                     RECHARGE_BILL, RENT_BILL, SETTLEMENT_BILL, REFUND_BILL]
             billOwnerType:
               type: string
               enum: [ENTERPRISE, TENANT]
@@ -504,7 +504,7 @@ components:
         billType:
           type: string
           enum: [ENTERPRISE_SIGN_BILL, PERSONAL_DEPOSIT_BILL,
-                 RECHARGE_BILL, SETTLEMENT_BILL, REFUND_BILL]
+                 RECHARGE_BILL, RENT_BILL, SETTLEMENT_BILL, REFUND_BILL]
         billOwnerType:
           type: string
           enum: [ENTERPRISE, TENANT]

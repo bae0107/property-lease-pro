@@ -474,6 +474,48 @@ public class AccountingService {
         return repo.findAllByAccountId(accountId);
     }
 
+    public List<RoomAccount> findRoomAccounts(Long roomId, Long contractId, String status,
+                                              int offset, int limit) {
+        return repo.findAll(roomId, contractId, status, offset, limit);
+    }
+
+    public int countRoomAccounts(Long roomId, Long contractId, String status) {
+        return repo.countAll(roomId, contractId, status);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 月租账单（contract.checkAndGenerateRentBills 调用）
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Transactional
+    public CreateBillResult createRentBill(RentBillCommand cmd) {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // 幂等：同合同当月已有 RENT_BILL（PENDING/PAID）则跳过（用户确认的"查询判重"方案）
+        java.time.YearMonth ym = java.time.YearMonth.parse(cmd.period());
+        OffsetDateTime monthStart = ym.atDay(1).atStartOfDay()
+                .atOffset(java.time.ZoneOffset.ofHours(8));
+        OffsetDateTime monthEnd = ym.plusMonths(1).atDay(1).atStartOfDay()
+                .atOffset(java.time.ZoneOffset.ofHours(8));
+        if (repo.existsActiveBillForPeriod(cmd.contractId(), "RENT_BILL", monthStart, monthEnd)) {
+            return null;
+        }
+
+        String billNo = billNoGenerator.generate(BillNoGenerator.Prefix.RENT);
+        Long billId = repo.insert(billNo, "RENT_BILL",
+                "ENTERPRISE", cmd.enterpriseId(), cmd.contractId(), null, null,
+                cmd.amount(), null, now);
+
+        var billingResult = billingServicePort.createBill(
+                new BillingServicePort.BillingCreateCommand(
+                        billNo, cmd.amount(), "RENT_BILL",
+                        "合同 #" + cmd.contractId() + " " + cmd.period() + " 月租"));
+        repo.updateStatus(billId, "PENDING", billingResult.billingServiceBillId(), null, now);
+
+        return new CreateBillResult(billId, billingResult.billingServiceBillId(),
+                billingResult.paymentUrl());
+    }
+
     /**
      * 发起充值：创建 RECHARGE_BILL 并调用 billing-service。
      */

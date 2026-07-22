@@ -15,4 +15,12 @@ public interface ContractScheduleTrigger {
      * </ul>
      */
     void checkContractExpiry(LocalDate date);
+
+    /**
+     * 月租账单生成：仅每月 1 号执行（其他日期直接返回）。
+     * 对 READY_FOR_CHECK_IN / PARTIALLY_RETURNED 合同，按 ACTIVE 房间 signed_rent 求和，
+     * 调用 AccountingCommandPort.createRentBill（同合同当月幂等跳过）。
+     * payment_mode=QUARTERLY 时仅在与 start_date 相隔 3 的倍数的月份出账，金额为 3 个月租金。
+     */
+    void checkAndGenerateRentBills(LocalDate date);
 }

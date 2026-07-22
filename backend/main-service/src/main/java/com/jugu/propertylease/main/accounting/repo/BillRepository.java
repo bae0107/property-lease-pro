@@ -31,4 +31,8 @@ public interface BillRepository {
 
     int countByOwner(String ownerType, Long ownerId, String status,
                      String billType, LocalDate start, LocalDate end);
+
+    /** 幂等判重：同合同同类型在 [from, to) 内是否已有 PENDING/PAID 账单。*/
+    boolean existsActiveBillForPeriod(Long contractId, String billType,
+                                      OffsetDateTime from, OffsetDateTime to);
 }

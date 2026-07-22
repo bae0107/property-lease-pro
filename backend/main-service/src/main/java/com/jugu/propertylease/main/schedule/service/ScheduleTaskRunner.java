@@ -70,6 +70,18 @@ public class ScheduleTaskRunner {
         });
     }
 
+    /**
+     * 每日 01:30 — 月租账单生成（仅每月 1 号实际出账，其余日期空跑）。
+     */
+    @Scheduled(cron = "0 30 1 * * ?")
+    public void rentBillGeneration() {
+        LocalDate today = LocalDate.now();
+        run("RENT_BILL_GENERATION", today, false, "CRON", () -> {
+            contractTrigger.checkAndGenerateRentBills(today);
+            return new TaskRunResult(0, 0, 0, null);
+        });
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // 通用任务执行包装（防重 + 日志）
     // ══════════════════════════════════════════════════════════════════════

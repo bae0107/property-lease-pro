@@ -28,6 +28,7 @@ public class BillNoGenerator {
         public static final String SIGN       = "ESB";   // ENTERPRISE_SIGN_BILL
         public static final String DEPOSIT    = "PDB";   // PERSONAL_DEPOSIT_BILL
         public static final String RECHARGE   = "RCH";   // RECHARGE_BILL
+        public static final String RENT       = "RNT";   // RENT_BILL
         public static final String SETTLEMENT = "STL";   // SETTLEMENT_BILL
         public static final String REFUND     = "RFD";   // REFUND_BILL
     }

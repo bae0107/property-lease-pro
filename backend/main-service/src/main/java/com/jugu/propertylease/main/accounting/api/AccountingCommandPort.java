@@ -62,6 +62,14 @@ public interface AccountingCommandPort {
     /** 全部退房：所有房间 + 企业押金全量结算。*/
     void settleFullReturn(Long contractId);
 
+    // ── 月租账单（contract.checkAndGenerateRentBills 调用）───────────────
+
+    /**
+     * 创建月租账单（RENT_BILL，付款方企业）。
+     * 幂等：同合同当月已存在 RENT_BILL（PENDING/PAID）时跳过，返回 null。
+     */
+    CreateBillResult createRentBill(RentBillCommand cmd);
+
     // ── 日结扣减（metering.runDailySettlement 调用）──────────────────────
 
     /**

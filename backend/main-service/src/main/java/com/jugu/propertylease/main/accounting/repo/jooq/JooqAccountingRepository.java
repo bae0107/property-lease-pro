@@ -85,6 +85,28 @@ public class JooqAccountingRepository
     }
 
     @Override
+    public List<RoomAccount> findAll(Long roomId, Long contractId, String status,
+                                     int offset, int limit) {
+        Condition cond = trueCondition();
+        if (roomId     != null) cond = cond.and(ROOM_ACCOUNT.ROOM_ID.eq(roomId));
+        if (contractId != null) cond = cond.and(ROOM_ACCOUNT.CURRENT_CONTRACT_ID.eq(contractId));
+        if (status     != null) cond = cond.and(ROOM_ACCOUNT.STATUS.eq(status));
+        return dsl.selectFrom(ROOM_ACCOUNT).where(cond)
+                .orderBy(ROOM_ACCOUNT.ID.desc())
+                .limit(limit).offset(offset)
+                .fetchInto(RoomAccount.class);
+    }
+
+    @Override
+    public int countAll(Long roomId, Long contractId, String status) {
+        Condition cond = trueCondition();
+        if (roomId     != null) cond = cond.and(ROOM_ACCOUNT.ROOM_ID.eq(roomId));
+        if (contractId != null) cond = cond.and(ROOM_ACCOUNT.CURRENT_CONTRACT_ID.eq(contractId));
+        if (status     != null) cond = cond.and(ROOM_ACCOUNT.STATUS.eq(status));
+        return dsl.fetchCount(ROOM_ACCOUNT, cond);
+    }
+
+    @Override
     public void updateStatus(Long id, String status, OffsetDateTime now) {
         dsl.update(ROOM_ACCOUNT)
                 .set(ROOM_ACCOUNT.STATUS, status)
@@ -312,6 +334,17 @@ public class JooqAccountingRepository
         if (status    != null) cond = cond.and(BILL.BILL_STATUS.eq(status));
         if (billType  != null) cond = cond.and(BILL.BILL_TYPE.eq(billType));
         return dsl.fetchCount(BILL, cond);
+    }
+
+    @Override
+    public boolean existsActiveBillForPeriod(Long contractId, String billType,
+                                             OffsetDateTime from, OffsetDateTime to) {
+        return dsl.fetchExists(BILL,
+                BILL.CONTRACT_ID.eq(contractId),
+                BILL.BILL_TYPE.eq(billType),
+                BILL.BILL_STATUS.in("PENDING", "PAID"),
+                BILL.CREATED_AT.ge(from),
+                BILL.CREATED_AT.lt(to));
     }
 
     // ── DepositLedger ───────────────────────────────────────────────────────

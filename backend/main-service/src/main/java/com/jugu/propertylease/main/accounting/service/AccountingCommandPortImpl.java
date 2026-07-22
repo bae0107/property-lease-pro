@@ -63,6 +63,11 @@ public class AccountingCommandPortImpl implements AccountingCommandPort {
     }
 
     @Override
+    public CreateBillResult createRentBill(RentBillCommand cmd) {
+        return svc.createRentBill(cmd);
+    }
+
+    @Override
     public DailyDeductionResult deductForDailySettlement(DailyDeductionCommand cmd) {
         return svc.deductForDailySettlement(cmd);
     }

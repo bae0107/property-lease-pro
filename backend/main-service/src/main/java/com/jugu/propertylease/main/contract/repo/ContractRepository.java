@@ -36,6 +36,9 @@ public interface ContractRepository {
     /** schedule 用：查询 end_date <= date 且 status 为活跃的合同。*/
     List<Contract> findExpiringContracts(LocalDate date, List<String> activeStatuses);
 
+    /** schedule 用：按状态集合查合同（月租账单生成）。*/
+    List<Contract> findByStatuses(List<String> statuses);
+
     // ── ContractRoom ────────────────────────────────────────────────────────
 
     Long insertContractRoom(Long contractId, Long roomId, BigDecimal signedRent,

@@ -1,12 +1,18 @@
 package com.jugu.propertylease.main.contract.api;
 
+import com.jugu.propertylease.main.accounting.api.AccountingCommandPort;
+import com.jugu.propertylease.main.accounting.api.model.RentBillCommand;
 import com.jugu.propertylease.main.contract.repo.ContractRepository;
 import com.jugu.propertylease.main.jooq.tables.pojos.Contract;
+import com.jugu.propertylease.main.jooq.tables.pojos.ContractRoom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -32,9 +38,12 @@ public class ContractScheduleTriggerImpl implements ContractScheduleTrigger {
     );
 
     private final ContractRepository repo;
+    private final AccountingCommandPort accountingCommandPort;
 
-    public ContractScheduleTriggerImpl(ContractRepository repo) {
+    public ContractScheduleTriggerImpl(ContractRepository repo,
+                                       AccountingCommandPort accountingCommandPort) {
         this.repo = repo;
+        this.accountingCommandPort = accountingCommandPort;
     }
 
     @Override
@@ -43,7 +52,7 @@ public class ContractScheduleTriggerImpl implements ContractScheduleTrigger {
                 date.plusDays(REMINDER_THRESHOLD_DAYS), ACTIVE_STATUSES);
 
         for (Contract contract : dueContracts) {
-            long daysUntilEnd = java.time.temporal.ChronoUnit.DAYS.between(date, contract.getEndDate());
+            long daysUntilEnd = ChronoUnit.DAYS.between(date, contract.getEndDate());
 
             if (contract.getEndDate().isBefore(date)) {
                 log.warn("合同已到期但仍处于活跃状态，需人工发起终止：contractId={}, contractNo={}, endDate={}",
@@ -54,6 +63,57 @@ public class ContractScheduleTriggerImpl implements ContractScheduleTrigger {
                         contract.getId(), contract.getContractNo(), contract.getEndDate(),
                         daysUntilEnd);
             }
+        }
+    }
+
+    @Override
+    public void checkAndGenerateRentBills(LocalDate date) {
+        if (date.getDayOfMonth() != 1) {
+            return; // 仅每月 1 号出账
+        }
+
+        List<Contract> contracts = repo.findByStatuses(ACTIVE_STATUSES);
+        for (Contract contract : contracts) {
+            try {
+                generateRentBill(contract, date);
+            } catch (Exception e) {
+                // 单合同失败不阻断其他合同；当月幂等，明日 Cron 自然重试
+                log.error("[contract] 月租账单生成失败 contractId={} date={}",
+                        contract.getId(), date, e);
+            }
+        }
+    }
+
+    private void generateRentBill(Contract contract, LocalDate date) {
+        // QUARTERLY：仅在与起租月相隔 3 的倍数的月份出账，一次出 3 个月
+        int months = 1;
+        if ("QUARTERLY".equals(contract.getPaymentMode())) {
+            long elapsed = ChronoUnit.MONTHS.between(
+                    YearMonth.from(contract.getStartDate()), YearMonth.from(date));
+            if (elapsed % 3 != 0) {
+                return;
+            }
+            months = 3;
+        }
+
+        BigDecimal monthlyRent = repo.findRoomsByContract(contract.getId(), "ACTIVE").stream()
+                .map(ContractRoom::getSignedRent)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (monthlyRent.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        BigDecimal amount = monthlyRent.multiply(BigDecimal.valueOf(months));
+        var result = accountingCommandPort.createRentBill(new RentBillCommand(
+                contract.getId(), contract.getEnterpriseId(), amount,
+                YearMonth.from(date).toString()));
+        if (result == null) {
+            log.info("[contract] 月租账单已存在，跳过 contractId={} period={}",
+                    contract.getId(), YearMonth.from(date));
+        } else {
+            log.info("[contract] 月租账单已生成 contractId={} billId={} amount={}",
+                    contract.getId(), result.billId(), amount);
         }
     }
 

@@ -20,6 +20,12 @@ public interface RoomAccountRepository {
     /** 按当前合同查找所有 ACTIVE 房间账户（settleFullReturn 用）。*/
     List<RoomAccount> findActiveByContractId(Long contractId);
 
+    /** 分页查询房间账户。*/
+    List<RoomAccount> findAll(Long roomId, Long contractId, String status,
+                              int offset, int limit);
+
+    int countAll(Long roomId, Long contractId, String status);
+
     void updateStatus(Long id, String status, OffsetDateTime now);
 
     void updateContractId(Long id, Long contractId, OffsetDateTime now);

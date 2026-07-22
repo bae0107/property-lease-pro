@@ -46,11 +46,22 @@ class AccountingRoomAccountsApiDelegateImpl implements AccountingRoomAccountsApi
     public RoomAccountPageResult queryRoomAccounts(RoomAccountQueryRequest req) {
         int page = req.getPageNo() != null ? req.getPageNo() : 1;
         int size = req.getPageSize() != null ? req.getPageSize() : 20;
-        // TODO: repo 尚无房间账户的分页列表查询（RoomAccountRepository 缺 findAll），
-        //  当前先返回空页，待补 repo 方法后实现。
+        String status = req.getStatus() != null ? req.getStatus().getValue() : null;
+
+        List<RoomAccount> accounts = svc.findRoomAccounts(req.getRoomId(),
+                req.getContractId(), status, (page - 1) * size, size);
+        int total = svc.countRoomAccounts(req.getRoomId(), req.getContractId(), status);
+
         return new RoomAccountPageResult()
-                .items(List.of())
-                .total(0L)
+                .items(accounts.stream().map(a ->
+                        new com.jugu.propertylease.main.api.model.RoomAccount()
+                                .id(a.getId())
+                                .roomId(a.getRoomId())
+                                .currentContractId(a.getCurrentContractId())
+                                .status(com.jugu.propertylease.main.api.model.RoomAccount
+                                        .StatusEnum.fromValue(a.getStatus()))
+                ).toList())
+                .total((long) total)
                 .pageNo(page)
                 .pageSize(size);
     }
