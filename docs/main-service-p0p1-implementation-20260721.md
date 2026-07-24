@@ -109,6 +109,22 @@
 - `POST /accounting/bills/query` → 403 无权限（mock user 只有 iam 权限，权限链正确拦截）；
 - `POST /iam/users/query` → 200，返回 bootstrap 预制的 iam_admin/iam_system，分页模型与 OffsetDateTime（+08:00）序列化正常。
 
+## 8.5 E2E 全业务流冒烟（2026-07-24，commit 7ba8458）
+
+**前置**：building_info/room_info 无 API，用 H2 RunScript 预制（`java -cp h2-2.2.224.jar org.h2.tools.RunScript -url "jdbc:h2:file:...;AUTO_SERVER=TRUE"`，可与应用并发连接）；mock user 已在 local yml 补全业务权限。
+
+**走通的完整链路**（全部 curl 实调）：
+建企业 → 建员工 → 建合同（2 房间 + ENTERPRISE_DEPOSIT 3800）→ confirm（生成签约账单 7600=押金+首月租）→ `POST /internal/v1/accounting/bills/paid` 模拟支付 → READY_FOR_CHECK_IN → 分配员工 → 入住（生成个人押金单 500）→ 支付押金 → 绑电表（底数100）→ 建电价 1.2 → 租客充值 100 → 支付 → 抄表 110/130 → 手动触发日结（force）→ **扣费 36.00（30度×1.2），余额 100→64** → 换宿到房间2（**余额 64 迁移、押金台账 CURRENT_STAY_ID 转移**）→ 退宿（REFUND_BILL 500）→ partial-return 房间1（PARTIALLY_RETURNED）→ partial-return 房间2（**自动整体结算 → COMPLETED**：企业押金 REFUND_BILL 3800、租客余额 REFUND_BILL 64、两房间账户 CLOSED）。
+
+**E2E 发现并修复的 3 个运行时 bug**：
+1. **押金支付回调空转**：`handleBillPaid` 的 PERSONAL_DEPOSIT_BILL 分支用 `findPersonalByStay(tenantId, null)`，匹配 `CURRENT_STAY_ID IS NULL` 永远查不到台账 → 新增 `DepositLedgerRepository.findPersonalPendingByTenant`（按 PENDING_PAYMENT + 最新一条）。
+2. **手动触发定时任务空转**：`ScheduleTasksApiDelegateImpl.triggerTask` 是 stub，返回"已提交，异步执行"但实际什么都不跑 → `ScheduleTaskRunner` 抽出 `runDailyMeterSettlement/runContractExpiryCheck` public 方法，Cron 与手动触发共用（同步执行）。
+3. **日结金额恒为 0**：`settleOneRoom` 用 UTC 日界（与全局 ShanghaiOffsetDateTimeConverter / occupancy 的 +08:00 日界不一致），且无前序读数时直接 `continue`（注释声称"无则取 CHECK_IN 底数"但未实现）→ 改 +08:00 日界 + 回退绑定 `initialReading`。
+
+**遗留小问题（未修）**：
+- `assignTenantToRoom` 时若员工手机号与既有 IAM_USER（如 bootstrap iam_admin）重复，抛 DuplicateKeyException 500 而非业务 409（GlobalExceptionHandler 未转换）；E2E 换手机号绕过。
+- STAY 接口返回的 personalDepositStatus 是入住时快照，押金支付回调后不刷新（台账状态才是准的）。
+
 ## 9. 构建命令（本机）
 
 ```bash
