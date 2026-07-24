@@ -389,6 +389,17 @@ public class JooqAccountingRepository
     }
 
     @Override
+    public Optional<DepositLedger> findPersonalPendingByTenant(Long tenantId) {
+        return Optional.ofNullable(dsl.selectFrom(DEPOSIT_LEDGER)
+                .where(DEPOSIT_LEDGER.DEPOSIT_TYPE.eq("PERSONAL"))
+                .and(DEPOSIT_LEDGER.OWNER_ID.eq(tenantId))
+                .and(DEPOSIT_LEDGER.STATUS.eq("PENDING_PAYMENT"))
+                .orderBy(DEPOSIT_LEDGER.ID.desc())
+                .limit(1)
+                .fetchOneInto(DepositLedger.class));
+    }
+
+    @Override
     public void updateCurrentStay(Long id, Long newStayId, OffsetDateTime now) {
         dsl.update(DEPOSIT_LEDGER)
                 .set(DEPOSIT_LEDGER.CURRENT_STAY_ID, newStayId)

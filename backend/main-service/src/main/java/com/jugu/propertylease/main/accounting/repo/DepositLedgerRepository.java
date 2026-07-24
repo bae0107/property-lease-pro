@@ -23,6 +23,9 @@ public interface DepositLedgerRepository {
 
     Optional<DepositLedger> findPersonalByStay(Long tenantId, Long stayId);
 
+    /** 支付回调用：按租客找 PENDING_PAYMENT 的个人押金台账（bill 上无 stayId）。*/
+    Optional<DepositLedger> findPersonalPendingByTenant(Long tenantId);
+
     void updateCurrentStay(Long id, Long newStayId, OffsetDateTime now);
 
     void updateStatus(Long id, String status, BigDecimal refundableAmount, OffsetDateTime now);

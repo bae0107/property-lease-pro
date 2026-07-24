@@ -419,9 +419,9 @@ public class AccountingService {
                 contractCallbackPort.onSignBillPaid(bill.getContractId(), bill.getId());
             }
             case "PERSONAL_DEPOSIT_BILL" -> {
-                // 个人押金台账 → ACTIVE
+                // 个人押金台账 → ACTIVE（bill 无 stayId，按 tenant 找 PENDING_PAYMENT 台账）
                 if (bill.getTenantId() != null) {
-                    repo.findPersonalByStay(bill.getTenantId(), null)
+                    repo.findPersonalPendingByTenant(bill.getTenantId())
                             .ifPresent(d -> repo.updateStatus(d.getId(), "ACTIVE",
                                     null, OffsetDateTime.now()));
                 }

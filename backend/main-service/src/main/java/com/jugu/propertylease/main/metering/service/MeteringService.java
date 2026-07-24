@@ -156,8 +156,9 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
     @Transactional
     protected RoomSettleResult settleOneRoom(Long roomId, LocalDate date) {
         OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime dayStart = date.atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime dayEnd   = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+        // 与 ShanghaiOffsetDateTimeConverter / occupancy 日界一致，按 +08:00 计算当日边界
+        OffsetDateTime dayStart = date.atStartOfDay().atOffset(ZoneOffset.ofHours(8));
+        OffsetDateTime dayEnd   = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.ofHours(8));
 
         BigDecimal waterAmt = BigDecimal.ZERO;
         BigDecimal elecAmt  = BigDecimal.ZERO;
@@ -174,13 +175,16 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
                     dayStart, dayEnd).orElse(null);
             if (endReading == null) continue; // 无读数，跳过该表类型
 
-            // 起始读数：昨日最新，无则取 CHECK_IN 底数
+            // 起始读数：昨日最新，无则取绑定底数（首次结算）
             MeterReading startReading = repo.findLatestBefore(roomId, meterType, dayStart)
                     .orElse(null);
-            if (startReading == null) continue;
+            BigDecimal startValue = startReading != null
+                    ? startReading.getReadingValue()
+                    : binding.getInitialReading();
+            if (startValue == null) continue;
 
             BigDecimal usage = endReading.getReadingValue()
-                    .subtract(startReading.getReadingValue());
+                    .subtract(startValue);
             if (usage.compareTo(BigDecimal.ZERO) < 0) usage = BigDecimal.ZERO;
 
             BigDecimal price = repo.findEffectivePrice(storeId, meterType, date)

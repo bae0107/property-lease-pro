@@ -47,8 +47,15 @@ public class ScheduleTaskRunner {
      */
     @Scheduled(cron = "0 0 2 * * ?")
     public void dailyMeterSettlement() {
-        LocalDate targetDate = LocalDate.now().minusDays(1);
-        run("DAILY_METER_SETTLEMENT", targetDate, false, "CRON", () -> {
+        runDailyMeterSettlement(LocalDate.now().minusDays(1), false, "CRON");
+    }
+
+    /**
+     * 水电日结（Cron 与手动触发共用）。
+     */
+    public void runDailyMeterSettlement(LocalDate targetDate, boolean force,
+                                        String triggeredBy) {
+        run("DAILY_METER_SETTLEMENT", targetDate, force, triggeredBy, () -> {
             DailySettlementResult r = meteringTrigger.runDailySettlement(targetDate);
             String errorSummary = r.failedRooms() > 0
                     ? "failedRooms=" + r.failedRooms() + " shortfall=" + r.totalShortfall()
@@ -63,9 +70,16 @@ public class ScheduleTaskRunner {
      */
     @Scheduled(cron = "0 0 1 * * ?")
     public void contractExpiryCheck() {
-        LocalDate today = LocalDate.now();
-        run("CONTRACT_EXPIRY_CHECK", today, false, "CRON", () -> {
-            contractTrigger.checkContractExpiry(today);
+        runContractExpiryCheck(LocalDate.now(), false, "CRON");
+    }
+
+    /**
+     * 合同到期检查（Cron 与手动触发共用）。
+     */
+    public void runContractExpiryCheck(LocalDate date, boolean force,
+                                       String triggeredBy) {
+        run("CONTRACT_EXPIRY_CHECK", date, force, triggeredBy, () -> {
+            contractTrigger.checkContractExpiry(date);
             return new TaskRunResult(0, 0, 0, null);
         });
     }

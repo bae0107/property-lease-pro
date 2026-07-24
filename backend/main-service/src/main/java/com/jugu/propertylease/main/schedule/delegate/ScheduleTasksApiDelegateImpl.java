@@ -35,19 +35,14 @@ public class ScheduleTasksApiDelegateImpl implements ScheduleTasksApiDelegate {
                 : LocalDate.now().minusDays(1);
         boolean force = Boolean.TRUE.equals(request.getForce());
 
-        // 触发任务（使用与 Cron 相同的防重入口）
-        taskRunner.run(taskType, targetDate, force, "MANUAL", () -> {
-            return switch (taskType) {
-                case "DAILY_METER_SETTLEMENT" -> {
-                    // 通过 Spring ApplicationContext 获取 ScheduleTaskRunner 内的实际逻辑
-                    // 此处直接复用 ScheduleTaskRunner 的内部方法签名（避免循环依赖，改为内联调用）
-                    // 实际上 ScheduleTaskRunner 会通过 MeteringScheduleTrigger 调用
-                    yield new ScheduleTaskRunner.TaskRunResult(0, 0, 0, "已提交，异步执行");
-                }
-                case "CONTRACT_EXPIRY_CHECK" -> new ScheduleTaskRunner.TaskRunResult(0, 0, 0, null);
-                default -> throw new IllegalArgumentException("未知任务类型: " + taskType);
-            };
-        });
+        // 触发任务（与 Cron 共用同一套业务逻辑与防重入口，同步执行）
+        switch (taskType) {
+            case "DAILY_METER_SETTLEMENT" ->
+                    taskRunner.runDailyMeterSettlement(targetDate, force, "MANUAL");
+            case "CONTRACT_EXPIRY_CHECK" ->
+                    taskRunner.runContractExpiryCheck(targetDate, force, "MANUAL");
+            default -> throw new IllegalArgumentException("未知任务类型: " + taskType);
+        }
 
         // 查出刚写入的 log 记录
         var logOpt = logRepo.findByTypeAndDate(taskType, targetDate);
@@ -57,7 +52,7 @@ public class ScheduleTasksApiDelegateImpl implements ScheduleTasksApiDelegate {
                 .taskLogId(logId)
                 .taskType(taskType)
                 .targetDate(targetDate)
-                .message("任务已提交，异步执行中");
+                .message("任务已同步执行完成");
     }
 
     @Override
