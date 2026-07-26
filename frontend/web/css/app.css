@@ -1,0 +1,79 @@
+/* 极简管理台样式：能操作、看得清即可 */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 14px; color: #333; background: #f0f2f5; }
+a { color: #1890ff; text-decoration: none; cursor: pointer; }
+button { cursor: pointer; padding: 4px 12px; border: 1px solid #d9d9d9; background: #fff; border-radius: 4px; font-size: 13px; }
+button:hover { border-color: #1890ff; color: #1890ff; }
+button.primary { background: #1890ff; border-color: #1890ff; color: #fff; }
+button.primary:hover { background: #40a9ff; }
+button.danger:hover { border-color: #ff4d4f; color: #ff4d4f; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+input, select, textarea { padding: 5px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; }
+input:focus, select:focus { outline: none; border-color: #1890ff; }
+
+/* 布局 */
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 180px; background: #001529; color: #fff; flex-shrink: 0; }
+.sidebar .logo { padding: 16px; font-size: 15px; font-weight: bold; border-bottom: 1px solid #ffffff22; }
+.sidebar .menu-item { display: block; padding: 10px 16px; color: #ffffffb3; cursor: pointer; }
+.sidebar .menu-item:hover, .sidebar .menu-item.active { color: #fff; background: #1890ff; }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.topbar { height: 48px; background: #fff; display: flex; align-items: center; justify-content: flex-end; padding: 0 20px; gap: 12px; box-shadow: 0 1px 4px #00000014; }
+.topbar .user { color: #666; }
+.content { padding: 16px; flex: 1; }
+
+/* 卡片/页面 */
+.card { background: #fff; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
+.card h2 { font-size: 15px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+
+/* 表格 */
+table.grid { width: 100%; border-collapse: collapse; background: #fff; }
+table.grid th, table.grid td { border: 1px solid #f0f0f0; padding: 8px 10px; text-align: left; }
+table.grid th { background: #fafafa; font-weight: 600; }
+table.grid tr:hover td { background: #fafcff; }
+table.grid .ops a { margin-right: 8px; white-space: nowrap; }
+
+/* 分页 */
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 12px 0; color: #666; }
+
+/* 模态框 */
+.modal-mask { position: fixed; inset: 0; background: #00000066; display: flex; align-items: flex-start; justify-content: center; z-index: 100; }
+.modal { background: #fff; border-radius: 6px; margin-top: 8vh; width: 520px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; }
+.modal .modal-title { padding: 12px 16px; font-weight: 600; border-bottom: 1px solid #f0f0f0; }
+.modal .modal-body { padding: 16px; overflow-y: auto; }
+.modal .modal-foot { padding: 12px 16px; border-top: 1px solid #f0f0f0; display: flex; justify-content: flex-end; gap: 8px; }
+.form-row { display: flex; align-items: center; margin-bottom: 12px; }
+.form-row label { width: 90px; flex-shrink: 0; color: #555; }
+.form-row input, .form-row select, .form-row textarea { flex: 1; }
+.form-row .hint { color: #999; font-size: 12px; margin-left: 8px; }
+.check-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; }
+.check-grid label { display: flex; gap: 4px; align-items: center; font-weight: normal; white-space: nowrap; }
+.check-group-title { grid-column: 1 / -1; font-weight: 600; margin-top: 6px; color: #555; }
+
+/* toast */
+#toast-root { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 200; }
+.toast { background: #fff; border-radius: 4px; padding: 8px 16px; margin-bottom: 8px; box-shadow: 0 2px 8px #00000026; border-left: 3px solid #1890ff; max-width: 70vw; }
+.toast.error { border-left-color: #ff4d4f; }
+.toast.success { border-left-color: #52c41a; }
+.toast .trace { color: #999; font-size: 11px; }
+
+/* 登录页 */
+.login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-box { background: #fff; padding: 32px; border-radius: 8px; width: 340px; box-shadow: 0 2px 12px #0000001a; }
+.login-box h1 { font-size: 18px; text-align: center; margin-bottom: 24px; }
+.login-box .form-row { margin-bottom: 16px; }
+.login-box button { width: 100%; padding: 8px; }
+.login-box .error { color: #ff4d4f; margin-bottom: 12px; min-height: 18px; font-size: 13px; }
+
+/* 工作台 */
+.entry-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.entry-card { background: #fff; border-radius: 4px; padding: 16px; cursor: pointer; border: 1px solid #f0f0f0; }
+.entry-card:hover { border-color: #1890ff; }
+.entry-card .t { font-weight: 600; margin-bottom: 4px; }
+.entry-card .d { color: #999; font-size: 12px; }
+
+.tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 12px; background: #f0f0f0; }
+.tag.green { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+.tag.red { background: #fff2f0; color: #ff4d4f; border: 1px solid #ffccc7; }
+.tag.blue { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
