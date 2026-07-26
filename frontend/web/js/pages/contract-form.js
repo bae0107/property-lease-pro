@@ -6,13 +6,13 @@ import { el, toast } from '../common/ui.js';
 
 /** 加载空房（创建合同可选房间） */
 export async function loadEmptyRooms() {
-  const r = await post('/propertymgr/rooms/query', { pageNo: 1, pageSize: 500, roomStatus: 'EMPTY' });
+  const r = await post('/propertymgr/rooms/query', { pageNo: 1, pageSize: 200, roomStatus: 'EMPTY' });
   return r.items || [];
 }
 
 /** 加载企业列表 */
 export async function loadEnterprises() {
-  const r = await post('/customer/enterprises/query', { pageNo: 1, pageSize: 500 });
+  const r = await post('/customer/enterprises/query', { pageNo: 1, pageSize: 200 });
   return r.items || [];
 }
 

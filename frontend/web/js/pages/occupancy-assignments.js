@@ -22,7 +22,7 @@ function assignDialog(onDone) {
         el('option', { value: String(r.id) }, `#${r.id}（房间 ${r.roomId}，租金 ${r.signedRent}）`)));
       roomSel.removeAttribute('disabled');
       hint.textContent = `合同 ${detail.contractNo}，企业 #${detail.enterpriseId}，状态 ${detail.status}`;
-      return post('/customer/employees/query', { pageNo: 1, pageSize: 500, enterpriseId: detail.enterpriseId });
+      return post('/customer/employees/query', { pageNo: 1, pageSize: 200, enterpriseId: detail.enterpriseId });
     }).then(r => {
       if (!r) return;
       const employees = r.items || [];

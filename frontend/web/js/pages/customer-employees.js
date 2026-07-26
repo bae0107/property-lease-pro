@@ -8,7 +8,7 @@ import { el, clear, table, pager, modal, formRow, toast, statusTag } from '../co
 const state = { pageNo: 1, pageSize: 10, total: 0, enterpriseId: '', status: '' };
 
 async function loadEnterprises() {
-  const r = await post('/customer/enterprises/query', { pageNo: 1, pageSize: 500 });
+  const r = await post('/customer/enterprises/query', { pageNo: 1, pageSize: 200 });
   return r.items || [];
 }
 

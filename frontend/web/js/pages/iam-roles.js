@@ -7,7 +7,7 @@ import { el, clear, table, pager, modal, formRow, toast } from '../common/ui.js'
 const state = { pageNo: 1, pageSize: 10, total: 0 };
 
 async function loadPermissions() {
-  const r = await post('/iam/permissions/query', { pageNo: 1, pageSize: 500 });
+  const r = await post('/iam/permissions/query', { pageNo: 1, pageSize: 200 });
   return r.items || [];
 }
 
