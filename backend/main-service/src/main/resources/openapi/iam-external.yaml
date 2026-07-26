@@ -329,6 +329,7 @@ paths:
       summary: 分页查询用户列表
       description: 支持过滤字段由 GET /iam/users/list-view-meta 返回的 filters 动态描述。
       x-required-permission: iam:user:read
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -351,6 +352,7 @@ paths:
       operationId: getUser
       summary: 查询单个用户（含角色列表和数据权限）
       x-required-permission: iam:user:read
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -388,6 +390,7 @@ paths:
 
         - userType 不允许修改（仅支持 STAFF 用户）'
       x-required-permission: iam:user:write
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -444,6 +447,7 @@ paths:
 
         - 触发 authVersion 递增使 token 失效'
       x-required-permission: iam:user:delete
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -483,6 +487,7 @@ paths:
       operationId: updateUserStatus
       summary: 修改单个用户状态
       x-required-permission: iam:user:write
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -521,6 +526,7 @@ paths:
       summary: 重置用户密码（适用于 STAFF / CONTRACTOR）
       description: 重置指定用户的登录密码。仅适用于使用密码登录的用户类型，不适用于 SYSTEM 用户。
       x-required-permission: iam:user:password:reset
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -559,6 +565,7 @@ paths:
       summary: 批量修改用户状态（含单个，ids 传 1 个即为单个操作）
       description: 约束：不允许包含 SYSTEM 用户；不允许包含操作者自身（禁用场景）。
       x-required-permission: iam:user:write
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -590,6 +597,7 @@ paths:
 
         - BUILTIN 用户不允许通过此接口调整默认角色绑定'
       x-required-permission: iam:user:write
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -631,6 +639,7 @@ paths:
       operationId: getUserDataScope
       summary: 查询用户数据权限（适用于 STAFF / CONTRACTOR）
       x-required-permission: iam:user:read
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -666,6 +675,7 @@ paths:
 
         维度与用户所属角色的 requiredDataScopeDimension 必须匹配，否则 400。'
       x-required-permission: iam:user:scope:write
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -707,6 +717,7 @@ paths:
       operationId: createRole
       summary: 创建自定义角色（roleType 固定为 STAFF，sourceType 固定为 CUSTOM）
       x-required-permission: iam:role:write
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -736,6 +747,7 @@ paths:
       summary: 分页查询角色列表
       description: 支持过滤字段由 GET /iam/roles/list-view-meta 返回的 filters 动态描述。
       x-required-permission: iam:role:read
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -758,6 +770,7 @@ paths:
       operationId: getRole
       summary: 查询单个角色详情（含权限列表）
       x-required-permission: iam:role:read
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -829,6 +842,7 @@ paths:
       summary: 批量删除自定义角色（sourceType=BUILTIN 的角色禁止删除，有用户绑定的角色禁止删除）
       description: ids 传 1 个为单个操作，传多个为批量操作。使用 POST 而非 DELETE with body，避免代理层兼容问题。
       x-required-permission: iam:role:write
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -865,6 +879,7 @@ paths:
       operationId: updateRolePermissions
       summary: 覆写角色权限（sourceType=BUILTIN 的角色禁止修改）
       x-required-permission: iam:role:write
+      x-builtin-roles: IAM_ADMIN
       parameters:
         - name: id
           in: path
@@ -907,6 +922,7 @@ paths:
       summary: 分页查询有效权限列表（已软删除的不返回，）
       description: 支持过滤字段由 GET /iam/permissions/list-view-meta 返回的 filters 动态描述。
       x-required-permission: iam:permission:read
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -930,6 +946,7 @@ paths:
       summary: 已登录用户主动绑定微信（STAFF）
       description: TENANT 绑定在首次小程序登录时自动完成；CONTRACTOR 当前不使用此接口。
       x-required-permission: iam:wechat:bind
+      x-builtin-roles: IAM_ADMIN
       requestBody:
         required: true
         content:
@@ -965,6 +982,7 @@ paths:
       operationId: unbindWechat
       summary: 已登录用户解绑微信（微信是唯一登录方式时不允许解绑）
       x-required-permission: iam:wechat:unbind
+      x-builtin-roles: IAM_ADMIN
       responses:
         '200':
           description: 解绑成功
@@ -984,6 +1002,7 @@ paths:
       summary: 查询用户列表视图元数据
       description: 前端首次进入页面或主动刷新时调用，返回过滤器和列表列定义。
       x-required-permission: iam:user:read
+      x-builtin-roles: IAM_ADMIN
       responses:
         '200':
           description: 查询成功
@@ -999,6 +1018,7 @@ paths:
       summary: 查询创建用户表单元数据
       description: 返回创建 STAFF 用户所需的角色选项、数据权限选项及依赖关系。
       x-required-permission: iam:user:create
+      x-builtin-roles: IAM_ADMIN
       responses:
         '200':
           description: 查询成功
@@ -1014,6 +1034,7 @@ paths:
       summary: 查询角色列表视图元数据
       description: 前端首次进入页面或主动刷新时调用，返回过滤器和列表列定义。
       x-required-permission: iam:role:read
+      x-builtin-roles: IAM_ADMIN
       responses:
         '200':
           description: 查询成功
@@ -1029,6 +1050,7 @@ paths:
       summary: 查询权限列表视图元数据
       description: 前端首次进入页面或主动刷新时调用，返回过滤器和列表列定义。
       x-required-permission: iam:permission:read
+      x-builtin-roles: IAM_ADMIN
       responses:
         '200':
           description: 查询成功

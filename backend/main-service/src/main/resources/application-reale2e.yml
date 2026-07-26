@@ -1,0 +1,71 @@
+spring:
+  config:
+    activate:
+      on-profile: reale2e
+
+  # H2 内存数据库配置（与 local 同一库文件）
+  datasource:
+    url: jdbc:h2:file:D:/h2data_gihub/PROPERTY_LEASE_MAIN_V2;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;TIME ZONE=Asia/Shanghai
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: sa
+
+  # H2 控制台配置（方便调试）
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        trace: false
+        web-allow-others: false
+  sql:
+    init:
+      platform: h2
+      mode: always
+
+  # 禁用 Redis 自动配置
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+
+  # 启用内存缓存
+  cache:
+    type: simple
+  jooq:
+    sql-dialect: h2
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: INFO
+
+# 真实认证链路（E2E 前端联调专用）：
+# 与 gateway application-local.yml 配套 —— gateway 校验 User JWT 后铸 Service JWT，
+# 本服务 mode=service 校验 Service JWT。secret 必须与 gateway local 逐字一致。
+security:
+  mode: service
+  service-name: ${spring.application.name}
+  permit-paths:
+    - /auth/**
+    - /swagger-ui.html
+    - /swagger-ui/**
+    - /v3/api-docs/**
+    - /v3/api-docs.yaml
+    # 仅 reale2e：DevMockPayController 模拟支付端点（生产镜像无此 Bean）
+    - /dev/**
+  jwt:
+    user:
+      secret: local-user-jwt-secret-for-development-only
+      expiration: 1800
+    service:
+      secret: local-service-jwt-secret-for-development-only
+      expiration: 300
+
+# 预制 iam_admin 密码（PermissionManifestBootstrap 启动同步需要）
+iam:
+  bootstrap:
+    users:
+      iam-admin-initial-password: admin123
+
+server:
+  forward-headers-strategy: framework
