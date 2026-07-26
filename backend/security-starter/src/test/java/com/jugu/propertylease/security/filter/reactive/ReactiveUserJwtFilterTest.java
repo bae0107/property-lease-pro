@@ -83,6 +83,25 @@ class ReactiveUserJwtFilterTest {
         .verifyComplete();
   }
 
+  // ─── CORS preflight ───
+
+  @Test
+  void optionsPreflight_isPassedThrough_withoutAuth() {
+    // 浏览器预检不携带 Authorization；必须放行给下游 CorsWebFilter 应答，
+    // 否则受保护路径的跨域请求全部被 401 掐死在预检阶段
+    MockServerHttpRequest req = MockServerHttpRequest.options("/api/v1/orders")
+        .header(HttpHeaders.ORIGIN, "http://localhost:3000")
+        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+        .build();
+    var exchange = MockServerWebExchange.from(req);
+    var chain = chainThatSucceeds();
+
+    StepVerifier.create(filter.filter(exchange, chain))
+        .verifyComplete();
+
+    assertThat(exchange.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.UNAUTHORIZED);
+  }
+
   // ─── authentication failures ───
 
   @Test

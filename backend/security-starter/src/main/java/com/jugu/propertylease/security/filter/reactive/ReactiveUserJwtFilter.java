@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -27,6 +28,7 @@ import reactor.core.scheduler.Schedulers;
  *
  * <ul>
  *   <li>放行路径：直接透传，不生成 Service JWT</li>
+ *   <li>OPTIONS（CORS 预检）：直接透传，由下游 CorsWebFilter 校验 Origin 并应答</li>
  *   <li>认证路径：验证 User JWT → 生成 Service JWT → 移除 Authorization Header → 添加 X-Service-Token</li>
  * </ul>
  *
@@ -88,12 +90,18 @@ public class ReactiveUserJwtFilter implements WebFilter, Ordered {
     //    - attributes：用于 GatewayErrorWebExceptionHandler 在 originalExchange 中读取
     exchange = ensureTraceId(exchange);
 
-    // 2. 放行路径判断
+    // 2. CORS 预检（OPTIONS）直接放行：预检不携带 Authorization，
+    //    由下游 CorsWebFilter（order 低于本过滤器）校验 Origin 并直接应答
+    if (exchange.getRequest().getMethod() == HttpMethod.OPTIONS) {
+      return chain.filter(exchange);
+    }
+
+    // 3. 放行路径判断
     if (isPermittedPath(path)) {
       return chain.filter(exchange);
     }
 
-    // 3. 读取 Authorization Header
+    // 4. 读取 Authorization Header
     String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
     if (authHeader == null || authHeader.isBlank()) {
       return write401(exchange, InvalidTokenException.TOKEN_MISSING,
