@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.web.server.WebFilterChain;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -23,12 +23,12 @@ import reactor.test.StepVerifier;
 class SecurityHeaderCleanFilterTest {
 
   private GatewayProperties properties;
-  private GatewayFilterChain chain;
+  private WebFilterChain chain;
 
   @BeforeEach
   void setUp() {
     properties = new GatewayProperties();
-    chain = mock(GatewayFilterChain.class);
+    chain = mock(WebFilterChain.class);
     when(chain.filter(any())).thenReturn(Mono.empty());
   }
 
@@ -41,7 +41,7 @@ class SecurityHeaderCleanFilterTest {
       MockServerWebExchange exchange) {
 
     AtomicReference<ServerWebExchange> captured = new AtomicReference<>();
-    GatewayFilterChain capturingChain = ex -> {
+    WebFilterChain capturingChain = ex -> {
       captured.set(ex);          // 用 ServerWebExchange 接收，不强转
       return Mono.empty();
     };

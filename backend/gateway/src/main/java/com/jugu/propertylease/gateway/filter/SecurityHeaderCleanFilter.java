@@ -2,19 +2,22 @@ package com.jugu.propertylease.gateway.filter;
 
 import com.jugu.propertylease.gateway.config.GatewayProperties;
 import java.util.List;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 /**
  * Header 安全清洗过滤器（GW-2-A）。
  *
- * <p>在所有过滤器中最先执行（Order=-200），清洗外部请求中不可信任的 Header，防止外部伪造内部凭证（GW-C-05）。
+ * <p>必须是 {@link WebFilter} 而非 GlobalFilter：ReactiveUserJwtFilter（认证，WebFilter，Order=-100）
+ * 所在的 WebFilter 链整体先于 GlobalFilter 链执行。本过滤器以 Order=-200 在 WebFilter 链中最先执行，
+ * 确保清洗入站 X-Service-Token 发生在认证过滤器铸入新 Service JWT 之前；
+ * 若为 GlobalFilter，则会在认证之后才执行，把刚铸入的 X-Service-Token 一并剥掉（GW-C-05 反而破坏链路）。
  *
  * <p>清洗规则配置驱动：
  * <ul>
@@ -24,10 +27,10 @@ import reactor.core.publisher.Mono;
  * 后续新增清洗规则只需修改配置，不改代码。
  */
 @Component
-public class SecurityHeaderCleanFilter implements GlobalFilter, Ordered {
+public class SecurityHeaderCleanFilter implements WebFilter, Ordered {
 
   /**
-   * 最先执行，确保在认证（Order=-100）和限流（Order=-150）之前清洗 Header
+   * 在 WebFilter 链中最先执行（ReactiveUserJwtFilter 认证过滤器为 -100）
    */
   static final int ORDER = -200;
 
@@ -45,7 +48,7 @@ public class SecurityHeaderCleanFilter implements GlobalFilter, Ordered {
   }
 
   @Override
-  public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+  public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
     // 清洗入站请求 Header
     ServerHttpRequest request = exchange.getRequest();
     if (!stripRequestHeaders.isEmpty()) {
