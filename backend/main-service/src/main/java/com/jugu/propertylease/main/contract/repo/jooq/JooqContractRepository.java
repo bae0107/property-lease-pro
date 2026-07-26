@@ -57,6 +57,27 @@ public class JooqContractRepository implements ContractRepository {
     }
 
     @Override
+    public Long insertRenewalContract(String contractNo, Long enterpriseId, String status,
+                                      LocalDate startDate, LocalDate endDate, String paymentMode,
+                                      String remark, Long renewedFromContractId,
+                                      Long createdBy, OffsetDateTime now) {
+        return dsl.insertInto(CONTRACT)
+                .set(CONTRACT.CONTRACT_NO, contractNo)
+                .set(CONTRACT.ENTERPRISE_ID, enterpriseId)
+                .set(CONTRACT.STATUS, status)
+                .set(CONTRACT.START_DATE, startDate)
+                .set(CONTRACT.END_DATE, endDate)
+                .set(CONTRACT.PAYMENT_MODE, paymentMode)
+                .set(CONTRACT.REMARK, remark)
+                .set(CONTRACT.RENEWED_FROM_CONTRACT_ID, renewedFromContractId)
+                .set(CONTRACT.CREATED_BY, createdBy)
+                .set(CONTRACT.CREATED_AT, now)
+                .set(CONTRACT.UPDATED_AT, now)
+                .returning(CONTRACT.ID)
+                .fetchOne(CONTRACT.ID);
+    }
+
+    @Override
     public Optional<Contract> findById(Long id) {
         return Optional.ofNullable(
                 dsl.selectFrom(CONTRACT)

@@ -1,0 +1,225 @@
+openapi: 3.0.3
+info:
+  title: Main Service API — Propertymgr Module
+  version: 1.0.0
+  description: |
+    楼栋和房间管理接口。
+    权限格式：propertymgr:{resource}:{action}
+servers:
+  - url: /
+tags:
+  - name: propertymgr-buildings
+    description: 楼栋管理
+  - name: propertymgr-rooms
+    description: 房间管理
+
+paths:
+
+  /propertymgr/buildings:
+    post:
+      tags: [propertymgr-buildings]
+      operationId: createBuilding
+      summary: 创建楼栋
+      x-required-permission: propertymgr:building:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBuildingRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+        '409':
+          description: 楼栋编号已存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+  /propertymgr/buildings/query:
+    post:
+      tags: [propertymgr-buildings]
+      operationId: queryBuildings
+      summary: 分页查询楼栋列表
+      x-required-permission: propertymgr:building:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildingQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildingPageResult'
+
+  /propertymgr/rooms:
+    post:
+      tags: [propertymgr-rooms]
+      operationId: createRoom
+      summary: 创建房间（初始状态 EMPTY）
+      x-required-permission: propertymgr:room:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '404':
+          description: 楼栋不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+        '409':
+          description: 同楼栋下房号已存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+  /propertymgr/rooms/query:
+    post:
+      tags: [propertymgr-rooms]
+      operationId: queryRooms
+      summary: 分页查询房间列表
+      x-required-permission: propertymgr:room:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomPageResult'
+
+components:
+  schemas:
+
+    CreateBuildingRequest:
+      type: object
+      required: [buildingId, storeId]
+      properties:
+        buildingId:
+          type: string
+          maxLength: 30
+          description: 楼栋业务编号（主键，由请求方给定）
+        storeId:
+          type: integer
+          format: int64
+        buildingName:
+          type: string
+          maxLength: 64
+
+    BuildingQueryRequest:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+        - type: object
+          properties:
+            buildingName:
+              type: string
+              description: 楼栋名称模糊匹配
+
+    CreateRoomRequest:
+      type: object
+      required: [buildingId]
+      properties:
+        buildingId:
+          type: string
+          maxLength: 30
+        level:
+          type: string
+          maxLength: 10
+          description: 楼层
+        roomNum:
+          type: string
+          maxLength: 20
+          description: 房号
+        livingNum:
+          type: integer
+          format: int32
+          description: 可住人数（null/0 按 1 处理）
+
+    RoomQueryRequest:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+        - type: object
+          properties:
+            buildingId:
+              type: string
+            roomStatus:
+              type: string
+              enum: [EMPTY, WAIT_CHECK_IN, OCCUPIED]
+
+    Building:
+      type: object
+      required: [buildingId, storeId]
+      properties:
+        buildingId:
+          type: string
+        storeId:
+          type: integer
+          format: int64
+        buildingName:
+          type: string
+
+    Room:
+      type: object
+      required: [roomId, buildingId]
+      properties:
+        roomId:
+          type: integer
+          format: int64
+        buildingId:
+          type: string
+        level:
+          type: string
+        roomNum:
+          type: string
+        livingNum:
+          type: integer
+          format: int32
+        roomStatus:
+          type: string
+
+    BuildingPageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Building'
+
+    RoomPageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Room'

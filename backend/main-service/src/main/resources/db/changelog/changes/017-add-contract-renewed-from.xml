@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         合同续租：新合同记录来源合同 id（renewContract 生成 DRAFT 时写入）
+         ========================================================= -->
+
+    <changeSet id="017-contract-renewed-from" author="dev">
+        <addColumn tableName="contract">
+            <column name="renewed_from_contract_id" type="BIGINT"
+                    remarks="续租来源合同 id（contract.id），普通创建为 NULL"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

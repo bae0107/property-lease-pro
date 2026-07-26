@@ -18,6 +18,12 @@ public interface ContractRepository {
                         LocalDate startDate, LocalDate endDate, String paymentMode,
                         String remark, Long createdBy, OffsetDateTime now);
 
+    /** 续租生成的新合同：额外写入 renewed_from_contract_id。*/
+    Long insertRenewalContract(String contractNo, Long enterpriseId, String status,
+                               LocalDate startDate, LocalDate endDate, String paymentMode,
+                               String remark, Long renewedFromContractId,
+                               Long createdBy, OffsetDateTime now);
+
     Optional<Contract> findById(Long id);
 
     Optional<Contract> findByContractNo(String contractNo);

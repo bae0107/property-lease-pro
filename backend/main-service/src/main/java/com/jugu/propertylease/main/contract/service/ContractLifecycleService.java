@@ -319,6 +319,71 @@ public class ContractLifecycleService {
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // 6. renewContract（续租：基于在租合同生成新 DRAFT 合同）
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Transactional
+    public ContractDetail renewContract(Long sourceContractId, RenewContractCommand cmd) {
+        Contract source = requireContract(sourceContractId);
+        if (!STATUS_READY_FOR_CHECK_IN.equals(source.getStatus())
+                && !STATUS_PARTIALLY_RETURNED.equals(source.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "CONTRACT_STATUS_INVALID",
+                    "仅 READY_FOR_CHECK_IN / PARTIALLY_RETURNED 状态可续租，当前："
+                            + source.getStatus());
+        }
+
+        if (cmd.startDate().isBefore(source.getEndDate())) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "RENEW_START_DATE_INVALID",
+                    "续租起租日不得早于原合同结束日 " + source.getEndDate());
+        }
+
+        if (cmd.rooms() == null || cmd.rooms().isEmpty()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST,
+                    "CONTRACT_ROOMS_REQUIRED", "合同至少需要一个房间");
+        }
+
+        // 占用校验与 createDraft 同款，但豁免源合同自身 ACTIVE 的房间（续租同房场景：
+        // 该房间被源合同锁定，room_info 非 EMPTY，contract_room 有一条源合同的 ACTIVE 记录）
+        for (CreateContractRoomCommand room : cmd.rooms()) {
+            boolean occupiedBySource = repo.findRoomByContractAndRoom(sourceContractId, room.roomId())
+                    .map(r -> ROOM_STATUS_ACTIVE.equals(r.getStatus()))
+                    .orElse(false);
+            if (occupiedBySource) {
+                continue;
+            }
+            if (!assetQueryPort.isRoomAvailableForContract(room.roomId())
+                    || repo.existsActiveContractRoom(room.roomId())) {
+                throw new BusinessException(HttpStatus.CONFLICT,
+                        "ROOM_NOT_AVAILABLE", "房间不可用，已被其它合同占用 roomId=" + room.roomId());
+            }
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        String contractNo = contractNoGenerator.generate();
+
+        // enterpriseId 强制沿用原合同，不允许修改
+        Long contractId = repo.insertRenewalContract(contractNo, source.getEnterpriseId(),
+                STATUS_DRAFT, cmd.startDate(), cmd.endDate(), cmd.paymentMode(), cmd.remark(),
+                sourceContractId, cmd.operatorId(), now);
+
+        for (CreateContractRoomCommand room : cmd.rooms()) {
+            repo.insertContractRoom(contractId, room.roomId(), room.signedRent(),
+                    room.leaseStart(), room.leaseEnd(), now);
+        }
+
+        if (cmd.chargeRules() != null) {
+            for (CreateChargeRuleCommand rule : cmd.chargeRules()) {
+                repo.insertChargeRule(contractId, rule.chargeType(), rule.payerType(),
+                        rule.amount(), rule.ruleSnapshot(), now);
+            }
+        }
+
+        return loadDetail(contractId);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // 供 ContractCallbackPortImpl 复用的内部状态流转
     // ══════════════════════════════════════════════════════════════════════
 

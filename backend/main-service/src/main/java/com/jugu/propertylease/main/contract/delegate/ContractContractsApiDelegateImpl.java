@@ -6,11 +6,13 @@ import com.jugu.propertylease.main.api.model.ContractPageResult;
 import com.jugu.propertylease.main.api.model.ContractQueryRequest;
 import com.jugu.propertylease.main.api.model.CreateContractRequest;
 import com.jugu.propertylease.main.api.model.PartialReturnRequest;
+import com.jugu.propertylease.main.api.model.RenewContractRequest;
 import com.jugu.propertylease.main.contract.repo.ContractRepository;
 import com.jugu.propertylease.main.contract.service.ContractLifecycleService;
 import com.jugu.propertylease.main.contract.service.CreateChargeRuleCommand;
 import com.jugu.propertylease.main.contract.service.CreateContractRoomCommand;
 import com.jugu.propertylease.main.contract.service.CreateDraftCommand;
+import com.jugu.propertylease.main.contract.service.RenewContractCommand;
 import com.jugu.propertylease.main.jooq.tables.pojos.Contract;
 import com.jugu.propertylease.main.jooq.tables.pojos.ContractChargeRule;
 import com.jugu.propertylease.main.jooq.tables.pojos.ContractRoom;
@@ -107,6 +109,28 @@ public class ContractContractsApiDelegateImpl implements ContractContractsApiDel
         return getContract(id);
     }
 
+    @Override
+    public ContractDetail renewContract(Long id, RenewContractRequest request) {
+        Long operatorId = CurrentUser.getCurrentUserId();
+
+        var rooms = request.getRooms().stream()
+                .map(r -> new CreateContractRoomCommand(r.getRoomId(), r.getSignedRent(),
+                        r.getLeaseStart(), r.getLeaseEnd()))
+                .toList();
+
+        var chargeRules = request.getChargeRules() == null ? List.<CreateChargeRuleCommand>of()
+                : request.getChargeRules().stream()
+                        .map(r -> new CreateChargeRuleCommand(r.getChargeType(), r.getPayerType(),
+                                r.getAmount(), r.getRuleSnapshot()))
+                        .toList();
+
+        var result = lifecycleService.renewContract(id, new RenewContractCommand(
+                request.getStartDate(), request.getEndDate(), request.getPaymentMode(),
+                request.getRemark(), rooms, chargeRules, operatorId));
+
+        return toContractDetail(result.contract(), result.rooms(), result.chargeRules());
+    }
+
     private Contract requireContract(Long id) {
         return repo.findById(id).orElseThrow(() ->
                 new com.jugu.propertylease.common.exception.BusinessException(
@@ -125,6 +149,7 @@ public class ContractContractsApiDelegateImpl implements ContractContractsApiDel
                 .paymentMode(c.getPaymentMode())
                 .remark(c.getRemark())
                 .signBillId(c.getSignBillId())
+                .renewedFromContractId(c.getRenewedFromContractId())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt());
     }
@@ -168,6 +193,7 @@ public class ContractContractsApiDelegateImpl implements ContractContractsApiDel
                 .paymentMode(c.getPaymentMode())
                 .remark(c.getRemark())
                 .signBillId(c.getSignBillId())
+                .renewedFromContractId(c.getRenewedFromContractId())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .rooms(rooms.stream().map(this::toApiRoom).toList())
