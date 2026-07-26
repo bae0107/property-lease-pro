@@ -95,12 +95,36 @@ export function formRow(label, control, hint = null) {
     hint ? el('span', { class: 'hint' }, hint) : null);
 }
 
+/** 解析 hash 中的 query：'#/contract/detail?id=33' → { id: '33' } */
+export function hashQuery() {
+  const h = location.hash.replace(/^#/, '');
+  const i = h.indexOf('?');
+  if (i < 0) return {};
+  return Object.fromEntries(new URLSearchParams(h.slice(i + 1)));
+}
+
+/** date-time 显示：'2026-07-26T10:00:00+08:00' → '2026-07-26 10:00' */
+export function fmtTime(s) {
+  return s ? String(s).replace('T', ' ').slice(0, 16) : '-';
+}
+
 export function statusTag(status) {
   const map = {
-    ACTIVE: ['green', '启用'], INACTIVE: ['red', '停用'],
-    DRAFT: ['blue', '草稿'], CANCELLED: ['red', '已取消'],
+    ACTIVE: ['green', '启用/生效'], INACTIVE: ['red', '停用'],
+    DRAFT: ['blue', '草稿'], CANCELLED: ['red', '已取消/作废'],
     COMPLETED: ['green', '已完成'],
-    PENDING: ['blue', '待支付'], PAID: ['green', '已支付'],
+    PENDING: ['blue', '待处理'], PAID: ['green', '已支付'], REFUNDED: ['green', '已退款'],
+    SIGN_BILL_PENDING: ['blue', '待支付签约账单'],
+    READY_FOR_CHECK_IN: ['green', '可入住'],
+    PARTIALLY_RETURNED: ['blue', '部分退房'], SETTLING: ['blue', '结算中'],
+    RETURNED: ['red', '已退房'],
+    EMPTY: ['blue', '空房'], WAIT_CHECK_IN: ['blue', '待入住'], OCCUPIED: ['green', '已占用'],
+    ASSIGNED: ['blue', '已分配'], CONSUMED: ['green', '已消费'],
+    CHECKED_IN: ['green', '在住'], TRANSFERRED: ['blue', '已换宿'], CHECKED_OUT: ['red', '已退宿'],
+    SETTLED: ['green', '已结算'], PARTIAL: ['blue', '部分结算'], FAILED: ['red', '失败'],
+    RUNNING: ['blue', '运行中'], SUCCESS: ['green', '成功'], PARTIAL_FAILURE: ['red', '部分失败'],
+    PENDING_PAYMENT: ['blue', '待支付'], REFUND_PENDING: ['blue', '退款中'], CLOSED: ['red', '已关闭'],
+    FROZEN: ['blue', '冻结'],
   };
   const [color, text] = map[status] || ['blue', status];
   return el('span', { class: 'tag ' + color }, text);

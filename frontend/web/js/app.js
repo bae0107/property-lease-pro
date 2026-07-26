@@ -7,22 +7,51 @@ import { renderLogin } from './pages/login.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderIamUsers } from './pages/iam-users.js';
 import { renderIamRoles } from './pages/iam-roles.js';
+import { renderPropertyBuildings } from './pages/property-buildings.js';
+import { renderPropertyRooms } from './pages/property-rooms.js';
+import { renderCustomerEnterprises } from './pages/customer-enterprises.js';
+import { renderCustomerEmployees } from './pages/customer-employees.js';
+import { renderContractList } from './pages/contract-list.js';
+import { renderContractDetail } from './pages/contract-detail.js';
+import { renderOccupancyAssignments } from './pages/occupancy-assignments.js';
+import { renderOccupancyStays } from './pages/occupancy-stays.js';
+import { renderMeteringBindings } from './pages/metering-bindings.js';
+import { renderMeteringReadings } from './pages/metering-readings.js';
+import { renderAccountingBills } from './pages/accounting-bills.js';
+import { renderAccountingAccounts } from './pages/accounting-accounts.js';
+import { renderAccountingDeposits } from './pages/accounting-deposits.js';
+import { renderScheduleTasks } from './pages/schedule-tasks.js';
 
 // 路由表：path → { title, render, perm（可选，进入该页需要的权限） }
+// hideInMenu: 详情页等不出现在菜单，但仍受 perm 约束
 const routes = {
   '/dashboard': { title: '工作台', render: renderDashboard },
+  '/property/buildings': { title: '楼栋管理', render: renderPropertyBuildings, perm: 'propertymgr:building:read', group: '房屋管理' },
+  '/property/rooms': { title: '房间管理', render: renderPropertyRooms, perm: 'propertymgr:room:read', group: '房屋管理' },
+  '/customer/enterprises': { title: '企业管理', render: renderCustomerEnterprises, perm: 'customer:enterprise:read', group: '客户管理' },
+  '/customer/employees': { title: '员工管理', render: renderCustomerEmployees, perm: 'customer:employee:read', group: '客户管理' },
+  '/contract/list': { title: '合同列表', render: renderContractList, perm: 'contract:contract:read', group: '合同管理' },
+  '/contract/detail': { title: '合同详情', render: renderContractDetail, perm: 'contract:contract:read', group: '合同管理', hideInMenu: true },
+  '/occupancy/assignments': { title: '入住分配', render: renderOccupancyAssignments, perm: 'occupancy:assignment:read', group: '入住管理' },
+  '/occupancy/stays': { title: '在住管理', render: renderOccupancyStays, perm: 'occupancy:stay:read', group: '入住管理' },
+  '/metering/bindings': { title: '绑表与电价', render: renderMeteringBindings, perm: 'metering:binding:read', group: '抄表' },
+  '/metering/readings': { title: '抄表与日结', render: renderMeteringReadings, perm: 'metering:reading:read', group: '抄表' },
+  '/accounting/bills': { title: '账单管理', render: renderAccountingBills, perm: 'accounting:bill:read', group: '账务' },
+  '/accounting/accounts': { title: '房间账户', render: renderAccountingAccounts, perm: 'accounting:room-account:read', group: '账务' },
+  '/accounting/deposits': { title: '押金台账', render: renderAccountingDeposits, perm: 'accounting:deposit:read', group: '账务' },
+  '/schedule/tasks': { title: '定时任务', render: renderScheduleTasks, perm: 'schedule:task:read', group: '运维' },
   '/iam/users': { title: '用户管理', render: renderIamUsers, perm: 'iam:user:read', group: '系统管理' },
   '/iam/roles': { title: '角色管理', render: renderIamRoles, perm: 'iam:role:read', group: '系统管理' },
 };
 
 function currentPath() {
-  const h = location.hash.replace(/^#/, '');
+  const h = location.hash.replace(/^#/, '').split('?')[0];
   return h || '/dashboard';
 }
 
 function buildMenu(container) {
   const visible = Object.entries(routes)
-    .filter(([, r]) => !r.perm || hasPerm(r.perm));
+    .filter(([, r]) => !r.hideInMenu && (!r.perm || hasPerm(r.perm)));
   let lastGroup = null;
   for (const [path, r] of visible) {
     if (r.group && r.group !== lastGroup) {
