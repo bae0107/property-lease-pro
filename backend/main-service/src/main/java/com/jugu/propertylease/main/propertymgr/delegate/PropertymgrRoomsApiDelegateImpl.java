@@ -21,6 +21,7 @@ public class PropertymgrRoomsApiDelegateImpl implements PropertymgrRoomsApiDeleg
     public Room createRoom(CreateRoomRequest request) {
         return toApiModel(propertymgrService.createRoom(
                 request.getBuildingId(),
+                request.getUnit(),
                 request.getLevel(),
                 request.getRoomNum(),
                 request.getLivingNum()));
@@ -47,6 +48,7 @@ public class PropertymgrRoomsApiDelegateImpl implements PropertymgrRoomsApiDeleg
         return new Room()
                 .roomId(info.roomId())
                 .buildingId(info.buildingId())
+                .unit(info.unit())
                 .level(info.level())
                 .roomNum(info.roomNum())
                 .livingNum(info.livingNum())

@@ -1,7 +1,9 @@
 package com.jugu.propertylease.main.propertymgr.service;
 
+import static com.jugu.propertylease.main.jooq.Tables.AREA_INFO;
 import static com.jugu.propertylease.main.jooq.Tables.BUILDING_INFO;
 import static com.jugu.propertylease.main.jooq.Tables.ROOM_INFO;
+import static com.jugu.propertylease.main.jooq.Tables.STORE_INFO;
 
 import com.jugu.propertylease.common.exception.BusinessException;
 import org.jooq.DSLContext;
@@ -28,11 +30,138 @@ public class PropertymgrService {
         this.dsl = dsl;
     }
 
+    // ══════════════════════ 区域 ══════════════════════
+
+    public record AreaInfo(Long areaId, String areaName) {}
+
+    public AreaInfo createArea(String areaName) {
+        OffsetDateTime now = OffsetDateTime.now();
+        Long areaId = dsl.insertInto(AREA_INFO)
+                .set(AREA_INFO.AREANAME, areaName)
+                .set(AREA_INFO.ISDELETED, 1)
+                .set(AREA_INFO.CREATETIME, now)
+                .set(AREA_INFO.UPDATETIME, now)
+                .returningResult(AREA_INFO.AREAID)
+                .fetchOneInto(Long.class);
+        return new AreaInfo(areaId, areaName);
+    }
+
+    public AreaInfo updateArea(Long areaId, String areaName) {
+        int updated = dsl.update(AREA_INFO)
+                .set(AREA_INFO.AREANAME, areaName)
+                .set(AREA_INFO.UPDATETIME, OffsetDateTime.now())
+                .where(AREA_INFO.AREAID.eq(areaId).and(AREA_INFO.ISDELETED.eq(1)))
+                .execute();
+        if (updated == 0) {
+            throw new BusinessException(HttpStatus.NOT_FOUND,
+                    "AREA_NOT_FOUND", "区域不存在：" + areaId);
+        }
+        return new AreaInfo(areaId, areaName);
+    }
+
+    public PagedResult<AreaInfo> queryAreas(String areaName, int page, int size) {
+        List<Condition> conditions = new ArrayList<>();
+        conditions.add(AREA_INFO.ISDELETED.eq(1));
+        if (areaName != null && !areaName.isBlank()) {
+            conditions.add(AREA_INFO.AREANAME.like("%" + areaName + "%"));
+        }
+
+        int total = dsl.selectCount().from(AREA_INFO)
+                .where(conditions)
+                .fetchOneInto(Integer.class);
+
+        List<AreaInfo> items = dsl
+                .select(AREA_INFO.AREAID, AREA_INFO.AREANAME)
+                .from(AREA_INFO)
+                .where(conditions)
+                .orderBy(AREA_INFO.AREAID)
+                .limit((page - 1) * size, size)
+                .fetch(r -> new AreaInfo(r.get(AREA_INFO.AREAID), r.get(AREA_INFO.AREANAME)));
+
+        return new PagedResult<>(items, total);
+    }
+
+    // ══════════════════════ 门店 ══════════════════════
+
+    public record StoreInfo(Long storeId, Long areaId, String storeName) {}
+
+    private void requireAreaExists(Long areaId) {
+        boolean exists = dsl.fetchExists(AREA_INFO,
+                AREA_INFO.AREAID.eq(areaId).and(AREA_INFO.ISDELETED.eq(1)));
+        if (!exists) {
+            throw new BusinessException(HttpStatus.NOT_FOUND,
+                    "AREA_NOT_FOUND", "区域不存在：" + areaId);
+        }
+    }
+
+    public StoreInfo createStore(Long areaId, String storeName) {
+        requireAreaExists(areaId);
+        OffsetDateTime now = OffsetDateTime.now();
+        Long storeId = dsl.insertInto(STORE_INFO)
+                .set(STORE_INFO.AREAID, areaId)
+                .set(STORE_INFO.STORENAME, storeName)
+                .set(STORE_INFO.ISDELETED, 1)
+                .set(STORE_INFO.CREATETIME, now)
+                .set(STORE_INFO.UPDATETIME, now)
+                .returningResult(STORE_INFO.STOREID)
+                .fetchOneInto(Long.class);
+        return new StoreInfo(storeId, areaId, storeName);
+    }
+
+    public StoreInfo updateStore(Long storeId, Long areaId, String storeName) {
+        requireAreaExists(areaId);
+        int updated = dsl.update(STORE_INFO)
+                .set(STORE_INFO.AREAID, areaId)
+                .set(STORE_INFO.STORENAME, storeName)
+                .set(STORE_INFO.UPDATETIME, OffsetDateTime.now())
+                .where(STORE_INFO.STOREID.eq(storeId).and(STORE_INFO.ISDELETED.eq(1)))
+                .execute();
+        if (updated == 0) {
+            throw new BusinessException(HttpStatus.NOT_FOUND,
+                    "STORE_NOT_FOUND", "门店不存在：" + storeId);
+        }
+        return new StoreInfo(storeId, areaId, storeName);
+    }
+
+    public PagedResult<StoreInfo> queryStores(Long areaId, String storeName, int page, int size) {
+        List<Condition> conditions = new ArrayList<>();
+        conditions.add(STORE_INFO.ISDELETED.eq(1));
+        if (areaId != null) {
+            conditions.add(STORE_INFO.AREAID.eq(areaId));
+        }
+        if (storeName != null && !storeName.isBlank()) {
+            conditions.add(STORE_INFO.STORENAME.like("%" + storeName + "%"));
+        }
+
+        int total = dsl.selectCount().from(STORE_INFO)
+                .where(conditions)
+                .fetchOneInto(Integer.class);
+
+        List<StoreInfo> items = dsl
+                .select(STORE_INFO.STOREID, STORE_INFO.AREAID, STORE_INFO.STORENAME)
+                .from(STORE_INFO)
+                .where(conditions)
+                .orderBy(STORE_INFO.STOREID)
+                .limit((page - 1) * size, size)
+                .fetch(r -> new StoreInfo(
+                        r.get(STORE_INFO.STOREID),
+                        r.get(STORE_INFO.AREAID),
+                        r.get(STORE_INFO.STORENAME)));
+
+        return new PagedResult<>(items, total);
+    }
+
     // ══════════════════════ 楼栋 ══════════════════════
 
     public record BuildingInfo(String buildingId, Long storeId, String buildingName) {}
 
     public BuildingInfo createBuilding(String buildingId, Long storeId, String buildingName) {
+        boolean storeExists = dsl.fetchExists(STORE_INFO,
+                STORE_INFO.STOREID.eq(storeId).and(STORE_INFO.ISDELETED.eq(1)));
+        if (!storeExists) {
+            throw new BusinessException(HttpStatus.NOT_FOUND,
+                    "STORE_NOT_FOUND", "门店不存在：" + storeId);
+        }
         boolean exists = dsl.fetchExists(BUILDING_INFO,
                 BUILDING_INFO.BUILDINGID.eq(buildingId)
                         .and(BUILDING_INFO.ISDELETED.eq(1)));
@@ -81,10 +210,10 @@ public class PropertymgrService {
 
     // ══════════════════════ 房间 ══════════════════════
 
-    public record RoomInfo(Long roomId, String buildingId, String level,
+    public record RoomInfo(Long roomId, String buildingId, String unit, String level,
                            String roomNum, Integer livingNum, String roomStatus) {}
 
-    public RoomInfo createRoom(String buildingId, String level, String roomNum, Integer livingNum) {
+    public RoomInfo createRoom(String buildingId, String unit, String level, String roomNum, Integer livingNum) {
         boolean buildingExists = dsl.fetchExists(BUILDING_INFO,
                 BUILDING_INFO.BUILDINGID.eq(buildingId)
                         .and(BUILDING_INFO.ISDELETED.eq(1)));
@@ -105,6 +234,7 @@ public class PropertymgrService {
         OffsetDateTime now = OffsetDateTime.now();
         Long roomId = dsl.insertInto(ROOM_INFO)
                 .set(ROOM_INFO.BUILDINGID, buildingId)
+                .set(ROOM_INFO.UNIT, unit)
                 .set(ROOM_INFO.LEVEL, level)
                 .set(ROOM_INFO.ROOMNUM, roomNum)
                 .set(ROOM_INFO.LIVINGNUM, livingNum)
@@ -114,7 +244,7 @@ public class PropertymgrService {
                 .set(ROOM_INFO.UPDATETIME, now)
                 .returningResult(ROOM_INFO.ROOMID)
                 .fetchOneInto(Long.class);
-        return new RoomInfo(roomId, buildingId, level, roomNum, livingNum, "EMPTY");
+        return new RoomInfo(roomId, buildingId, unit, level, roomNum, livingNum, "EMPTY");
     }
 
     public PagedResult<RoomInfo> queryRooms(String buildingId, String roomStatus, int page, int size) {
@@ -132,7 +262,7 @@ public class PropertymgrService {
                 .fetchOneInto(Integer.class);
 
         List<RoomInfo> items = dsl
-                .select(ROOM_INFO.ROOMID, ROOM_INFO.BUILDINGID, ROOM_INFO.LEVEL,
+                .select(ROOM_INFO.ROOMID, ROOM_INFO.BUILDINGID, ROOM_INFO.UNIT, ROOM_INFO.LEVEL,
                         ROOM_INFO.ROOMNUM, ROOM_INFO.LIVINGNUM, ROOM_INFO.ROOMSTATUS)
                 .from(ROOM_INFO)
                 .where(conditions)
@@ -141,6 +271,7 @@ public class PropertymgrService {
                 .fetch(r -> new RoomInfo(
                         r.get(ROOM_INFO.ROOMID),
                         r.get(ROOM_INFO.BUILDINGID),
+                        r.get(ROOM_INFO.UNIT),
                         r.get(ROOM_INFO.LEVEL),
                         r.get(ROOM_INFO.ROOMNUM),
                         r.get(ROOM_INFO.LIVINGNUM),

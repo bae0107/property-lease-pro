@@ -8,12 +8,158 @@ info:
 servers:
   - url: /
 tags:
+  - name: propertymgr-areas
+    description: 区域管理（资产层级顶层）
+  - name: propertymgr-stores
+    description: 门店管理（区域之下、楼栋之上）
   - name: propertymgr-buildings
     description: 楼栋管理
   - name: propertymgr-rooms
     description: 房间管理
 
 paths:
+
+  /propertymgr/areas:
+    post:
+      tags: [propertymgr-areas]
+      operationId: createArea
+      summary: 创建区域
+      x-required-permission: propertymgr:area:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAreaRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Area'
+
+  /propertymgr/areas/query:
+    post:
+      tags: [propertymgr-areas]
+      operationId: queryAreas
+      summary: 分页查询区域列表
+      x-required-permission: propertymgr:area:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AreaQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AreaPageResult'
+
+  /propertymgr/areas/{id}:
+    put:
+      tags: [propertymgr-areas]
+      operationId: updateArea
+      summary: 区域改名
+      x-required-permission: propertymgr:area:write
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAreaRequest'
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Area'
+        '404':
+          description: 区域不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+  /propertymgr/stores:
+    post:
+      tags: [propertymgr-stores]
+      operationId: createStore
+      summary: 创建门店
+      x-required-permission: propertymgr:store:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStoreRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '404':
+          description: 所属区域不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
+
+  /propertymgr/stores/query:
+    post:
+      tags: [propertymgr-stores]
+      operationId: queryStores
+      summary: 分页查询门店列表（可按区域过滤）
+      x-required-permission: propertymgr:store:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorePageResult'
+
+  /propertymgr/stores/{id}:
+    put:
+      tags: [propertymgr-stores]
+      operationId: updateStore
+      summary: 修改门店（名称/所属区域）
+      x-required-permission: propertymgr:store:write
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStoreRequest'
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '404':
+          description: 门店或区域不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
 
   /propertymgr/buildings:
     post:
@@ -34,6 +180,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Building'
+        '404':
+          description: 门店不存在
+          content:
+            application/json:
+              schema:
+                $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse
         '409':
           description: 楼栋编号已存在
           content:
@@ -114,7 +266,121 @@ paths:
                 $ref: '#/components/schemas/RoomPageResult'
 
 components:
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
   schemas:
+
+    CreateAreaRequest:
+      type: object
+      required: [areaName]
+      properties:
+        areaName:
+          type: string
+          maxLength: 64
+
+    UpdateAreaRequest:
+      type: object
+      required: [areaName]
+      properties:
+        areaName:
+          type: string
+          maxLength: 64
+
+    AreaQueryRequest:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+        - type: object
+          properties:
+            areaName:
+              type: string
+              description: 区域名称模糊匹配
+
+    Area:
+      type: object
+      required: [areaId, areaName]
+      properties:
+        areaId:
+          type: integer
+          format: int64
+        areaName:
+          type: string
+
+    AreaPageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Area'
+
+    CreateStoreRequest:
+      type: object
+      required: [areaId, storeName]
+      properties:
+        areaId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+          maxLength: 64
+
+    UpdateStoreRequest:
+      type: object
+      required: [areaId, storeName]
+      properties:
+        areaId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+          maxLength: 64
+
+    StoreQueryRequest:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageRequest
+        - type: object
+          properties:
+            areaId:
+              type: integer
+              format: int64
+              description: 按所属区域过滤
+            storeName:
+              type: string
+              description: 门店名称模糊匹配
+
+    Store:
+      type: object
+      required: [storeId, areaId, storeName]
+      properties:
+        storeId:
+          type: integer
+          format: int64
+        areaId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+
+    StorePageResult:
+      allOf:
+        - $ref: ../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/PageResponse
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Store'
 
     CreateBuildingRequest:
       type: object
@@ -147,6 +413,10 @@ components:
         buildingId:
           type: string
           maxLength: 30
+        unit:
+          type: string
+          maxLength: 20
+          description: 单元（属性化字段）
         level:
           type: string
           maxLength: 10
@@ -191,6 +461,8 @@ components:
           type: integer
           format: int64
         buildingId:
+          type: string
+        unit:
           type: string
         level:
           type: string

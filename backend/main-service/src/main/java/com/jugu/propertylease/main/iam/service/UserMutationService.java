@@ -3,6 +3,7 @@ package com.jugu.propertylease.main.iam.service;
 import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.api.model.BatchUpdateUserStatusRequest;
 import com.jugu.propertylease.main.api.model.CreateUserRequest;
+import com.jugu.propertylease.main.api.model.DataScopeDimension;
 import com.jugu.propertylease.main.api.model.DataScopeItem;
 import com.jugu.propertylease.main.api.model.DataScopeType;
 import com.jugu.propertylease.main.api.model.ResetUserPasswordRequest;
@@ -20,6 +21,7 @@ import com.jugu.propertylease.main.iam.repo.UserRepository;
 import com.jugu.propertylease.main.iam.repo.UserRoleRepository;
 import com.jugu.propertylease.main.iam.repo.model.RoleTypeSnapshot;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
+import com.jugu.propertylease.main.propertymgr.api.AssetHierarchyQueryPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 用户写操作聚合服务。
@@ -51,6 +54,7 @@ public class UserMutationService {
     private final UserDataScopeRepository userDataScopeRepo;
     private final AuthVersionService authVersionService;
     private final UserReadService userReadService;
+    private final AssetHierarchyQueryPort assetHierarchyQueryPort;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
 
     public UserMutationService(
@@ -60,7 +64,8 @@ public class UserMutationService {
             UserRoleRepository userRoleRepo,
             UserDataScopeRepository userDataScopeRepo,
             AuthVersionService authVersionService,
-            UserReadService userReadService) {
+            UserReadService userReadService,
+            AssetHierarchyQueryPort assetHierarchyQueryPort) {
         this.userRepo = userRepo;
         this.credentialRepo = credentialRepo;
         this.identityRepo = identityRepo;
@@ -68,6 +73,7 @@ public class UserMutationService {
         this.userDataScopeRepo = userDataScopeRepo;
         this.authVersionService = authVersionService;
         this.userReadService = userReadService;
+        this.assetHierarchyQueryPort = assetHierarchyQueryPort;
     }
 
     // ─────────────────────────────────────────────
@@ -108,6 +114,7 @@ public class UserMutationService {
         // 5. 校验并写入数据权限（选填）
         if (request.getScopes() != null) {
             validateScopeDimensionsMatchRoles(roleIds, request.getScopes());
+            validateScopeResourcesExist(request.getScopes());
             userDataScopeRepo.replace(userId, request.getScopes(), now);
         }
 
@@ -207,6 +214,7 @@ public class UserMutationService {
         List<DataScopeItem> scopes = request.getScopes() != null ? request.getScopes() : List.of();
 
         validateScopeDimensionsMatchRoles(roleIds, scopes);
+        validateScopeResourcesExist(scopes);
 
         userDataScopeRepo.replace(userId, scopes, OffsetDateTime.now());
 
@@ -315,6 +323,35 @@ public class UserMutationService {
         if (!payloadDimensions.equals(requiredDimensions)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
                     "IAM_USER_SCOPE_DIMENSION_MISMATCH", "数据权限维度必须与角色要求一致");
+        }
+    }
+
+    /**
+     * 校验 SPECIFIC 类型的 resourceIds 在资产层级主数据中真实存在（未删除）。
+     *
+     * <p>AREA 维度查 area_info，STORE 维度查 store_info；存在缺失 ID 时 400。
+     */
+    private void validateScopeResourcesExist(List<DataScopeItem> scopes) {
+        if (scopes == null) {
+            return;
+        }
+        for (DataScopeItem item : scopes) {
+            if (item.getScopeType() != DataScopeType.SPECIFIC
+                    || item.getResourceIds() == null || item.getResourceIds().isEmpty()) {
+                continue;
+            }
+            Set<Long> requested = new LinkedHashSet<>(item.getResourceIds());
+            Set<Long> existing = item.getDimension() == DataScopeDimension.AREA
+                    ? assetHierarchyQueryPort.findExistingAreaIds(requested)
+                    : assetHierarchyQueryPort.findExistingStoreIds(requested);
+            Set<Long> missing = requested.stream()
+                    .filter(id -> !existing.contains(id))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (!missing.isEmpty()) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST,
+                        "IAM_USER_SCOPE_RESOURCE_NOT_FOUND",
+                        "数据权限资源不存在（" + item.getDimension().getValue() + "）：" + missing);
+            }
         }
     }
 }

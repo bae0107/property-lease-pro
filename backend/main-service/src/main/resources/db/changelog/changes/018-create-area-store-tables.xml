@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- =========================================================
+         propertymgr 资产层级：区域、门店（数据权限配置闭环）
+         层级：区域(AREA) > 门店(STORE) > 楼栋(BUILDING) > 房间(ROOM)；
+         单元/楼层属性化（room_info.Unit / Level，不做实体）。
+         约定沿用 016：列名 camelCase、IsDeleted INT 1=未删除、
+         CreateTime/UpdateTime DATETIME(3)。
+         building_info.StoreId 为 store_info.StoreId 的逻辑外键（不加 DB 外键）。
+         iam_user_data_scope.resource_id 引用 AreaId / StoreId。
+         ========================================================= -->
+
+    <changeSet id="018-area-info" author="dev">
+        <createTable tableName="area_info" remarks="区域信息（资产层级顶层，数据权限 AREA 维度资源）">
+            <column name="AreaId" type="BIGINT" autoIncrement="true" remarks="区域主键Id">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="AreaName" type="VARCHAR(64)" remarks="区域名称">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IsDeleted" type="INT" defaultValue="1" remarks="1=未删除">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CreateTime" type="DATETIME(3)"/>
+            <column name="UpdateTime" type="DATETIME(3)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="018-store-info" author="dev">
+        <createTable tableName="store_info" remarks="门店信息（区域之下、楼栋之上，数据权限 STORE 维度资源）">
+            <column name="StoreId" type="BIGINT" autoIncrement="true" remarks="门店主键Id">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="AreaId" type="BIGINT" remarks="所属区域 area_info.AreaId（逻辑外键）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="StoreName" type="VARCHAR(64)" remarks="门店名称">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IsDeleted" type="INT" defaultValue="1" remarks="1=未删除">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CreateTime" type="DATETIME(3)"/>
+            <column name="UpdateTime" type="DATETIME(3)"/>
+        </createTable>
+        <createIndex tableName="store_info" indexName="idx_store_info_area">
+            <column name="AreaId"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="018-room-info-add-unit" author="dev">
+        <addColumn tableName="room_info">
+            <column name="Unit" type="VARCHAR(20)" remarks="单元（属性化，不做实体）"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>
