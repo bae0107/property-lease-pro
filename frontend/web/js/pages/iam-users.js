@@ -11,19 +11,29 @@ async function loadRoles() {
   return r.items || [];
 }
 
-/** 角色勾选控件，返回 { node, selectedIds() } */
-function roleChecklist(roles, checkedIds = []) {
+/** 角色勾选控件，返回 { node, selectedIds() }；onChange(selectedIds) 可选 */
+function roleChecklist(roles, checkedIds = [], onChange = null) {
   const boxes = roles.map(r => {
     const cb = el('input', { type: 'checkbox', value: String(r.id) });
     cb.checked = checkedIds.includes(r.id);
-    return el('label', {}, [cb, ` ${r.name}（${r.code}）`]);
+    if (r.requiredDataScopeDimension) {
+      cb.setAttribute('title', `要求${r.requiredDataScopeDimension === 'AREA' ? '区域' : '门店'}数据权限`);
+    }
+    return el('label', {}, [cb, ` ${r.name}（${r.code}）`,
+      r.requiredDataScopeDimension
+        ? el('span', { class: 'tag blue', style: 'margin-left:4px' },
+            r.requiredDataScopeDimension === 'AREA' ? '区域' : '门店')
+        : null]);
   });
+  const selectedIds = () => boxes.map(b => b.querySelector('input'))
+    .filter(i => i.checked).map(i => Number(i.value));
+  if (onChange) {
+    boxes.forEach(b => b.querySelector('input')
+      .addEventListener('change', () => onChange(selectedIds())));
+  }
   return {
     node: el('div', { class: 'check-grid' }, boxes),
-    selectedIds() {
-      return boxes.map(b => b.querySelector('input'))
-        .filter(i => i.checked).map(i => Number(i.value));
-    },
+    selectedIds,
   };
 }
 
@@ -33,14 +43,34 @@ function createUserDialog(onDone) {
   const mobile = el('input', { type: 'text', placeholder: '11位手机号' });
   const realName = el('input', { type: 'text' });
 
-  loadRoles().then(roles => {
-    const roleList = roleChecklist(roles);
+  Promise.all([
+    loadRoles(),
+    loadScopeResources('AREA'),
+    loadScopeResources('STORE'),
+  ]).then(([roles, areas, stores]) => {
+    // 选中带维度要求的角色时，动态渲染对应的数据权限行
+    const scopeBox = el('div', {});
+    let scopeRows = [];
+    const rebuildScopes = checkedIds => {
+      const dims = [...new Set(roles
+        .filter(r => checkedIds.includes(r.id) && r.requiredDataScopeDimension)
+        .map(r => r.requiredDataScopeDimension))];
+      clear(scopeBox);
+      scopeRows = dims.map(d => {
+        const row = scopeRow(d, d === 'AREA' ? '区域' : '门店',
+          d === 'AREA' ? areas : stores, null);
+        scopeBox.appendChild(row.node);
+        return row;
+      });
+    };
+    const roleList = roleChecklist(roles, [], rebuildScopes);
     modal('创建 STAFF 用户', el('div', {}, [
       formRow('用户名', username),
       formRow('初始密码', password),
       formRow('手机号', mobile),
       formRow('真实姓名', realName),
       formRow('绑定角色', roleList.node),
+      scopeBox,
     ]), {
       onOk: async () => {
         const roleIds = roleList.selectedIds();
@@ -48,14 +78,25 @@ function createUserDialog(onDone) {
           toast('用户名/密码/手机号必填', 'error'); return false;
         }
         if (roleIds.length === 0) { toast('至少绑定一个角色', 'error'); return false; }
-        await post('/iam/users', {
+        let scopes = null;
+        if (scopeRows.length > 0) {
+          try {
+            scopes = scopeRows.map(r => r.collect());
+          } catch (e) { toast(e.message, 'error'); return false; }
+          if (scopes.some(s => !s)) {
+            toast('所选角色要求配置数据权限，请选择范围', 'error'); return false;
+          }
+        }
+        const body = {
           userType: 'STAFF',
           username: username.value.trim(),
           password: password.value,
           mobile: mobile.value.trim(),
           realName: realName.value.trim() || null,
           roleIds,
-        });
+        };
+        if (scopes) body.scopes = scopes;
+        await post('/iam/users', body);
         toast('创建成功', 'success');
         onDone();
       },
