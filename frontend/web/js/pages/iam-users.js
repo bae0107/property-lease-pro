@@ -90,6 +90,85 @@ function resetPasswordDialog(user) {
   });
 }
 
+async function loadScopeResources(dimension) {
+  const path = dimension === 'AREA' ? '/propertymgr/areas/query' : '/propertymgr/stores/query';
+  const r = await post(path, { pageNo: 1, pageSize: 200 });
+  return (r.items || []).map(x => dimension === 'AREA'
+    ? { id: x.areaId, name: x.areaName }
+    : { id: x.storeId, name: x.storeName });
+}
+
+/** 单维度数据权限编辑行，返回 { node, collect() → DataScopeItem|null } */
+function scopeRow(dimension, label, resources, current) {
+  const mode = el('select', {}, [
+    el('option', { value: '' }, '不配置'),
+    el('option', { value: 'ALL' }, '全部' + label),
+    el('option', { value: 'SPECIFIC' }, '指定' + label),
+  ]);
+  mode.value = current ? current.scopeType : '';
+
+  const boxes = resources.map(r => {
+    const cb = el('input', { type: 'checkbox', value: String(r.id) });
+    cb.checked = !!(current && current.resourceIds && current.resourceIds.includes(r.id));
+    return el('label', {}, [cb, ` ${r.name}（#${r.id}）`]);
+  });
+  const checklist = el('div', {
+    class: 'check-grid',
+    style: mode.value === 'SPECIFIC' ? '' : 'display:none',
+  }, boxes.length ? boxes : [el('span', { style: 'color:#999' }, `暂无${label}，请先到房屋管理创建`)]);
+
+  mode.addEventListener('change', () => {
+    checklist.style.display = mode.value === 'SPECIFIC' ? '' : 'none';
+  });
+
+  return {
+    node: el('div', {}, [
+      formRow(label + '范围', mode),
+      el('div', { class: 'form-row' }, [el('label', {}, ''), checklist]),
+    ]),
+    collect() {
+      if (!mode.value) return null;
+      if (mode.value === 'ALL') return { dimension, scopeType: 'ALL' };
+      const ids = boxes.map(b => b.querySelector('input'))
+        .filter(i => i.checked).map(i => Number(i.value));
+      if (ids.length === 0) throw new Error(`请选择至少一个${label}，或改为「全部/不配置」`);
+      return { dimension, scopeType: 'SPECIFIC', resourceIds: ids };
+    },
+  };
+}
+
+function dataScopeDialog(user, onDone) {
+  Promise.all([
+    get(`/iam/users/${user.id}/data-scope`),
+    loadScopeResources('AREA'),
+    loadScopeResources('STORE'),
+  ]).then(([dataScope, areas, stores]) => {
+    const current = {};
+    for (const s of (dataScope && dataScope.scopes) || []) current[s.dimension] = s;
+
+    const areaRow = scopeRow('AREA', '区域', areas, current.AREA);
+    const storeRow = scopeRow('STORE', '门店', stores, current.STORE);
+
+    modal(`数据权限 - ${user.userName || user.realName || user.id}`, el('div', {}, [
+      el('div', { style: 'color:#999;font-size:12px;margin-bottom:8px' },
+        '维度须与用户角色的数据权限维度要求一致；保存为全量替换'),
+      areaRow.node,
+      storeRow.node,
+    ]), {
+      width: '640px',
+      onOk: async () => {
+        let scopes;
+        try {
+          scopes = [areaRow.collect(), storeRow.collect()].filter(Boolean);
+        } catch (e) { toast(e.message, 'error'); return false; }
+        await put(`/iam/users/${user.id}/data-scope`, { scopes });
+        toast('数据权限已更新', 'success');
+        onDone();
+      },
+    });
+  });
+}
+
 function renderPage(container) {
   clear(container);
   const card = el('div', { class: 'card' });
@@ -121,7 +200,7 @@ function renderPage(container) {
       { title: '状态', render: u => statusTag(u.status) },
       { title: '角色', render: u => u.roleNames || '-' },
     ];
-    const ops = { title: '操作', width: '220px', render: u => {
+    const ops = { title: '操作', width: '280px', render: u => {
       const links = [];
       if (hasPerm('iam:user:write')) {
         links.push(el('a', { onclick: () => assignRolesDialog(u, () => renderPage(container)) }, '分配角色'));
@@ -137,9 +216,12 @@ function renderPage(container) {
       if (hasPerm('iam:user:password:reset')) {
         links.push(el('a', { onclick: () => resetPasswordDialog(u) }, '重置密码'));
       }
+      if (hasPerm('iam:user:scope:write')) {
+        links.push(el('a', { onclick: () => dataScopeDialog(u, () => renderPage(container)) }, '数据权限'));
+      }
       return el('span', { class: 'ops' }, links);
     } };
-    if (hasPerm('iam:user:write') || hasPerm('iam:user:password:reset')) columns.push(ops);
+    if (hasPerm('iam:user:write') || hasPerm('iam:user:password:reset') || hasPerm('iam:user:scope:write')) columns.push(ops);
 
     clear(tableBox).appendChild(table(columns, rows));
     clear(pagerBox).appendChild(pager(state.pageNo, state.pageSize, state.total, p => {

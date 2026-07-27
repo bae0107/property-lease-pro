@@ -23,11 +23,13 @@ function buildingSelect(buildings, current = '') {
 function createDialog(onDone) {
   loadBuildings().then(buildings => {
     const building = buildingSelect(buildings);
+    const unit = el('input', { type: 'text', placeholder: '如 1单元（可空）' });
     const level = el('input', { type: 'text', placeholder: '如 3' });
     const roomNum = el('input', { type: 'text', placeholder: '如 301' });
     const livingNum = el('input', { type: 'number', placeholder: '可住人数，默认 1' });
     modal('创建房间（初始状态：空房）', el('div', {}, [
       formRow('所属楼栋', building),
+      formRow('单元', unit),
       formRow('楼层', level),
       formRow('房号', roomNum),
       formRow('可住人数', livingNum),
@@ -36,6 +38,7 @@ function createDialog(onDone) {
         if (!building.value) { toast('请选择楼栋', 'error'); return false; }
         await post('/propertymgr/rooms', {
           buildingId: building.value,
+          unit: unit.value.trim() || null,
           level: level.value.trim() || null,
           roomNum: roomNum.value.trim() || null,
           livingNum: livingNum.value ? Number(livingNum.value) : null,
@@ -95,6 +98,7 @@ function renderPage(container) {
     clear(tableBox).appendChild(table([
       { title: '房间 ID', render: r2 => r2.roomId },
       { title: '楼栋', render: r2 => r2.buildingId },
+      { title: '单元', render: r2 => r2.unit || '-' },
       { title: '楼层', render: r2 => r2.level || '-' },
       { title: '房号', render: r2 => r2.roomNum || '-' },
       { title: '可住人数', render: r2 => r2.livingNum ?? '-' },

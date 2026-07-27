@@ -40,10 +40,16 @@ function permChecklist(perms, checkedIds = []) {
 function createRoleDialog(onDone) {
   const name = el('input', { type: 'text', placeholder: '如：运营STAFF' });
   const code = el('input', { type: 'text', placeholder: '大写+下划线，如 OPS_STAFF' });
+  const dimension = el('select', {}, [
+    el('option', { value: '' }, '不要求'),
+    el('option', { value: 'AREA' }, '区域（AREA）'),
+    el('option', { value: 'STORE' }, '门店（STORE）'),
+  ]);
   const description = el('input', { type: 'text' });
   modal('创建角色', el('div', {}, [
     formRow('角色名称', name),
     formRow('角色编码', code),
+    formRow('数据权限维度', dimension, '绑定该角色的用户须按此维度配置数据权限；创建后不可修改'),
     formRow('描述', description),
   ]), {
     onOk: async () => {
@@ -53,6 +59,7 @@ function createRoleDialog(onDone) {
       await post('/iam/roles', {
         name: name.value.trim(),
         code: code.value.trim(),
+        requiredDataScopeDimension: dimension.value || null,
         description: description.value.trim() || null,
       });
       toast('创建成功', 'success');
@@ -103,6 +110,9 @@ function renderPage(container) {
       { title: '名称', render: r2 => r2.name },
       { title: '编码', render: r2 => r2.code },
       { title: '类型', render: r2 => r2.roleType },
+      { title: '数据维度', render: r2 => r2.requiredDataScopeDimension
+          ? el('span', { class: 'tag blue' }, r2.requiredDataScopeDimension === 'AREA' ? '区域' : '门店')
+          : '-' },
       { title: '来源', render: r2 => r2.sourceType === 'BUILTIN'
           ? el('span', { class: 'tag blue' }, '内置') : el('span', { class: 'tag' }, '自定义') },
       { title: '描述', render: r2 => r2.description || '-' },

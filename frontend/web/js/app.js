@@ -7,6 +7,8 @@ import { renderLogin } from './pages/login.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderIamUsers } from './pages/iam-users.js';
 import { renderIamRoles } from './pages/iam-roles.js';
+import { renderPropertyAreas } from './pages/property-areas.js';
+import { renderPropertyStores } from './pages/property-stores.js';
 import { renderPropertyBuildings } from './pages/property-buildings.js';
 import { renderPropertyRooms } from './pages/property-rooms.js';
 import { renderCustomerEnterprises } from './pages/customer-enterprises.js';
@@ -26,6 +28,8 @@ import { renderScheduleTasks } from './pages/schedule-tasks.js';
 // hideInMenu: 详情页等不出现在菜单，但仍受 perm 约束
 const routes = {
   '/dashboard': { title: '工作台', render: renderDashboard },
+  '/property/areas': { title: '区域管理', render: renderPropertyAreas, perm: 'propertymgr:area:read', group: '房屋管理' },
+  '/property/stores': { title: '门店管理', render: renderPropertyStores, perm: 'propertymgr:store:read', group: '房屋管理' },
   '/property/buildings': { title: '楼栋管理', render: renderPropertyBuildings, perm: 'propertymgr:building:read', group: '房屋管理' },
   '/property/rooms': { title: '房间管理', render: renderPropertyRooms, perm: 'propertymgr:room:read', group: '房屋管理' },
   '/customer/enterprises': { title: '企业管理', render: renderCustomerEnterprises, perm: 'customer:enterprise:read', group: '客户管理' },

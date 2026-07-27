@@ -4,6 +4,8 @@ import { payload, permissions, hasPerm } from '../common/auth.js';
 import { el } from '../common/ui.js';
 
 const ENTRIES = [
+  { path: '/property/areas', title: '区域管理', desc: '区域列表 / 创建 / 改名', perm: 'propertymgr:area:read' },
+  { path: '/property/stores', title: '门店管理', desc: '门店列表 / 创建 / 编辑', perm: 'propertymgr:store:read' },
   { path: '/property/buildings', title: '楼栋管理', desc: '楼栋列表 / 创建', perm: 'propertymgr:building:read' },
   { path: '/property/rooms', title: '房间管理', desc: '房间列表 / 创建', perm: 'propertymgr:room:read' },
   { path: '/customer/enterprises', title: '企业管理', desc: '企业列表 / 创建 / 编辑', perm: 'customer:enterprise:read' },
