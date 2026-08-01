@@ -7,7 +7,6 @@ import com.jugu.propertylease.main.iam.api.IamTenantPort;
 import com.jugu.propertylease.main.jooq.tables.pojos.Stay;
 import com.jugu.propertylease.main.metering.api.CollectReadingsCommand;
 import com.jugu.propertylease.main.metering.api.MeteringCommandPort;
-import com.jugu.propertylease.main.occupancy.outer.DoorLockPort;
 import com.jugu.propertylease.main.occupancy.repo.OccupancyRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,7 +23,7 @@ import java.util.List;
  *   <li>校验 stay.stayStatus == CHECKED_IN</li>
  *   <li>stay → CHECKED_OUT，记录 checkOutAt</li>
  *   <li>MeteringCommandPort.collectCheckOutReadings</li>
- *   <li>DoorLockPort.revokeCredential</li>
+ *   <li>DoorCredentialService.revokeForStay（门锁密码作废并回收）</li>
  *   <li>AccountingCommandPort.settlePersonalDepositOnCheckout</li>
  *   <li>IamTenantPort.disableTenantUser（若 stay 已绑定 iam_user_id）</li>
  * </ol>
@@ -35,18 +34,18 @@ public class CheckOutService {
     private final OccupancyRepository repo;
     private final MeteringCommandPort meteringCommandPort;
     private final AccountingCommandPort accountingCommandPort;
-    private final DoorLockPort doorLockPort;
+    private final DoorCredentialService doorCredentialService;
     private final IamTenantPort iamTenantPort;
 
     public CheckOutService(OccupancyRepository repo,
                             MeteringCommandPort meteringCommandPort,
                             AccountingCommandPort accountingCommandPort,
-                            DoorLockPort doorLockPort,
+                            DoorCredentialService doorCredentialService,
                             IamTenantPort iamTenantPort) {
         this.repo = repo;
         this.meteringCommandPort = meteringCommandPort;
         this.accountingCommandPort = accountingCommandPort;
-        this.doorLockPort = doorLockPort;
+        this.doorCredentialService = doorCredentialService;
         this.iamTenantPort = iamTenantPort;
     }
 
@@ -72,8 +71,8 @@ public class CheckOutService {
         meteringCommandPort.collectCheckOutReadings(new CollectReadingsCommand(
                 stayId, stay.getRoomId(), "CHECK_OUT", List.of(), operatorId));
 
-        // 4. 门锁回收凭证
-        doorLockPort.revokeCredential(stay.getTenantId(), stay.getRoomId(), stayId);
+        // 4. 门锁密码作废并回收
+        doorCredentialService.revokeForStay(stayId, stay.getRoomId(), stay.getTenantId());
 
         // 5. 个人押金结算（退款单据异步处理，此处只发起）
         DepositSettlementResult settlement =

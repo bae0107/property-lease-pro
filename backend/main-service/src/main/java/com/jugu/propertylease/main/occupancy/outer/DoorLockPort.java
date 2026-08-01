@@ -10,13 +10,17 @@ package com.jugu.propertylease.main.occupancy.outer;
 public interface DoorLockPort {
 
     /**
-     * 入住/换宿时下发门锁凭证（授权该 tenant 可开锁）。
+     * 入住/换宿时下发门锁密码（授权该 tenant 可开锁）。
+     *
+     * <p>密码由 occupancy Service 层生成并加密落库；本 Port 仅负责把明文同步到门锁硬件
+     * （stub 仅记日志，Http 实现未来对接 device-service）。
      *
      * @param tenantId 员工 ID（即 customer.employee.id）
      * @param roomId   房间 ID
      * @param stayId   stay.id（凭证与入住记录绑定，便于精确回收）
+     * @param plainPassword 明文密码（实现方禁止落日志明文）
      */
-    void issueCredential(Long tenantId, Long roomId, Long stayId);
+    void issueCredential(Long tenantId, Long roomId, Long stayId, String plainPassword);
 
     /**
      * 退宿/换宿时回收门锁凭证（注销该 tenant 的开锁权限）。

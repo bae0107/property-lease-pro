@@ -9,7 +9,6 @@ import com.jugu.propertylease.main.contract.api.ContractRoomInfo;
 import com.jugu.propertylease.main.jooq.tables.pojos.Stay;
 import com.jugu.propertylease.main.metering.api.CollectReadingsCommand;
 import com.jugu.propertylease.main.metering.api.MeteringCommandPort;
-import com.jugu.propertylease.main.occupancy.outer.DoorLockPort;
 import com.jugu.propertylease.main.occupancy.repo.OccupancyRepository;
 import com.jugu.propertylease.main.propertymgr.api.AssetQueryPort;
 import org.springframework.http.HttpStatus;
@@ -32,7 +31,7 @@ import java.util.List;
  *   <li>MeteringCommandPort.collectCheckInReadings(toStay)</li>
  *   <li>AccountingCommandPort.transferPersonalDepositEligibility</li>
  *   <li>AccountingCommandPort.transferTenantSubBalance</li>
- *   <li>DoorLockPort.revokeCredential(fromRoom) + issueCredential(toRoom)</li>
+ *   <li>DoorCredentialService：旧 stay 密码作废回收 + 新 stay 生成新密码下发</li>
  *   <li>记录 TransferRecord</li>
  * </ol>
  */
@@ -47,7 +46,7 @@ public class TransferService {
     private final MeteringCommandPort meteringCommandPort;
     private final AccountingCommandPort accountingCommandPort;
     private final AccountingQueryPort accountingQueryPort;
-    private final DoorLockPort doorLockPort;
+    private final DoorCredentialService doorCredentialService;
 
     public TransferService(OccupancyRepository repo,
                             ContractQueryPort contractQueryPort,
@@ -55,14 +54,14 @@ public class TransferService {
                             MeteringCommandPort meteringCommandPort,
                             AccountingCommandPort accountingCommandPort,
                             AccountingQueryPort accountingQueryPort,
-                            DoorLockPort doorLockPort) {
+                            DoorCredentialService doorCredentialService) {
         this.repo = repo;
         this.contractQueryPort = contractQueryPort;
         this.assetQueryPort = assetQueryPort;
         this.meteringCommandPort = meteringCommandPort;
         this.accountingCommandPort = accountingCommandPort;
         this.accountingQueryPort = accountingQueryPort;
-        this.doorLockPort = doorLockPort;
+        this.doorCredentialService = doorCredentialService;
     }
 
     @Transactional
@@ -141,9 +140,9 @@ public class TransferService {
         // 11. 迁移租客子余额
         accountingCommandPort.transferTenantSubBalance(tenantId, fromStay.getRoomId(), toRoomId);
 
-        // 12. 门锁切换
-        doorLockPort.revokeCredential(tenantId, fromStay.getRoomId(), fromStayId);
-        doorLockPort.issueCredential(tenantId, toRoomId, toStayId);
+        // 12. 门锁切换：旧 stay 密码作废回收，新 stay 生成新密码下发
+        doorCredentialService.revokeForStay(fromStayId, fromStay.getRoomId(), tenantId);
+        doorCredentialService.issueForStay(toStayId, toRoomId, tenantId, fromStay.getIamUserId());
 
         // 13. 记录换宿流水
         Long transferRecordId = repo.insertTransferRecord(tenantId, fromStayId,

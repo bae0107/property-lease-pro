@@ -1,5 +1,6 @@
 package com.jugu.propertylease.main.metering.service;
 
+import com.jugu.propertylease.common.exception.BusinessException;
 import com.jugu.propertylease.main.accounting.api.AccountingCommandPort;
 import com.jugu.propertylease.main.accounting.api.AccountingQueryPort;
 import com.jugu.propertylease.main.accounting.api.model.DailyDeductionCommand;
@@ -15,6 +16,7 @@ import com.jugu.propertylease.main.occupancy.api.StayInfo;
 import com.jugu.propertylease.main.propertymgr.api.AssetQueryPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -155,6 +157,19 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
 
     @Transactional
     protected RoomSettleResult settleOneRoom(Long roomId, LocalDate date) {
+        return settleRoomInternal(roomId, date, null, null);
+    }
+
+    /**
+     * 日结/换表期末结算共用实现。
+     *
+     * <p>{@code replaceBinding} 非 null 时（换表/解绑场景），该绑定对应表类型的截止读数
+     * 强制取 {@code replaceFinalReading}（而非当日最新 PERIODIC），其余表类型按日结规则
+     * 一并结清——保证当晚日结幂等跳过后不漏结。
+     */
+    private RoomSettleResult settleRoomInternal(Long roomId, LocalDate date,
+                                                MeterDeviceBinding replaceBinding,
+                                                BigDecimal replaceFinalReading) {
         OffsetDateTime now = OffsetDateTime.now();
         // 与 ShanghaiOffsetDateTimeConverter / occupancy 日界一致，按 +08:00 计算当日边界
         OffsetDateTime dayStart = date.atStartOfDay().atOffset(ZoneOffset.ofHours(8));
@@ -170,10 +185,17 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
             MeterDeviceBinding binding = repo.findActiveBinding(roomId, meterType).orElse(null);
             if (binding == null) continue;
 
-            // 截止读数：当日最新 PERIODIC
-            MeterReading endReading = repo.findLatestInRange(roomId, meterType,
-                    dayStart, dayEnd).orElse(null);
-            if (endReading == null) continue; // 无读数，跳过该表类型
+            BigDecimal endValue;
+            if (replaceBinding != null && replaceBinding.getId().equals(binding.getId())) {
+                // 换表/解绑：截止读数 = 旧表最终读数（校验后必然 ≥ 起始读数）
+                endValue = replaceFinalReading;
+            } else {
+                // 截止读数：当日最新 PERIODIC
+                MeterReading endReading = repo.findLatestInRange(roomId, meterType,
+                        dayStart, dayEnd).orElse(null);
+                if (endReading == null) continue; // 无读数，跳过该表类型
+                endValue = endReading.getReadingValue();
+            }
 
             // 起始读数：昨日最新，无则取绑定底数（首次结算）
             MeterReading startReading = repo.findLatestBefore(roomId, meterType, dayStart)
@@ -183,8 +205,7 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
                     : binding.getInitialReading();
             if (startValue == null) continue;
 
-            BigDecimal usage = endReading.getReadingValue()
-                    .subtract(startValue);
+            BigDecimal usage = endValue.subtract(startValue);
             if (usage.compareTo(BigDecimal.ZERO) < 0) usage = BigDecimal.ZERO;
 
             BigDecimal price = repo.findEffectivePrice(storeId, meterType, date)
@@ -310,18 +331,89 @@ public class MeteringService implements MeteringCommandPort, MeteringScheduleTri
     // 供外部 API Delegate 调用
     // ══════════════════════════════════════════════════════════════════════
 
+    /**
+     * 绑定/换表：存在旧 ACTIVE 绑定时按 {@code oldFinalReading} 先做期末结算，再关旧开新。
+     *
+     * @throws BusinessException 400 METER_FINAL_READING_INVALID 换表未传旧表最终读数 /
+     *         无旧绑定却传了 oldFinalReading / 最终读数小于最新读数
+     * @throws BusinessException 409 METER_REPLACE_AFTER_DAILY_SETTLEMENT 当日日结已完成
+     */
+    @Transactional
     public void bindDevice(Long roomId, Long deviceId, String meterType,
-                           BigDecimal initialReading, Long operatorId) {
+                           BigDecimal initialReading, BigDecimal oldFinalReading, Long operatorId) {
         OffsetDateTime now = OffsetDateTime.now();
-        // 关闭旧绑定
-        repo.findActiveBinding(roomId, meterType)
-                .ifPresent(old -> repo.closeBinding(old.getId(), now));
+        MeterDeviceBinding old = repo.findActiveBinding(roomId, meterType).orElse(null);
+        if (old == null) {
+            if (oldFinalReading != null) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "METER_FINAL_READING_INVALID",
+                        "该房间无活跃旧绑定，不允许传 oldFinalReading roomId=" + roomId);
+            }
+        } else {
+            if (oldFinalReading == null) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "METER_FINAL_READING_INVALID",
+                        "换表场景必须提供旧表最终读数 oldFinalReading roomId=" + roomId);
+            }
+            settleBindingFinal(old, oldFinalReading, now, operatorId);
+            repo.closeBinding(old.getId(), now);
+        }
         // 新建绑定
         repo.insertBinding(roomId, deviceId, meterType, now, initialReading, operatorId);
     }
 
-    public void unbindDevice(Long roomId, Long bindingId) {
-        repo.closeBinding(bindingId, OffsetDateTime.now());
+    /**
+     * 解绑：按 {@code finalReading} 先做期末结算，再关闭绑定。
+     *
+     * @throws BusinessException 404 绑定不存在或不属于该房间；400 绑定已关闭 / 最终读数不合法
+     */
+    @Transactional
+    public void unbindDevice(Long roomId, Long bindingId, BigDecimal finalReading, Long operatorId) {
+        MeterDeviceBinding binding = repo.findAllBindings(roomId).stream()
+                .filter(b -> b.getId().equals(bindingId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND,
+                        "METER_BINDING_NOT_FOUND", "绑定不存在 bindingId=" + bindingId));
+        if (binding.getIsActive() == null || binding.getIsActive() != 1) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "METER_BINDING_NOT_ACTIVE",
+                    "绑定已关闭，不能重复解绑 bindingId=" + bindingId);
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        settleBindingFinal(binding, finalReading, now, operatorId);
+        repo.closeBinding(bindingId, now);
+    }
+
+    /**
+     * 换表/解绑期末结算：校验最终读数 → 复用日结链路结清（被换表类型以 finalReading 为截止读数，
+     * 其余表类型按日结规则一并结清）→ 落 REPLACE_FINAL 锚点读数（归属旧 binding）。
+     *
+     * <p>幂等防重：charge 唯一约束 uq_rdc_room_date 决定当日只能结一次，日结已跑则拒绝换表；
+     * 旧绑定关闭后日结不再查它，不会重复扣款。
+     */
+    private void settleBindingFinal(MeterDeviceBinding binding, BigDecimal finalReading,
+                                    OffsetDateTime now, Long operatorId) {
+        Long roomId = binding.getRoomId();
+        String meterType = binding.getMeterType();
+        LocalDate today = LocalDate.now();
+
+        if (repo.existsCharge(roomId, today)) {
+            throw new BusinessException(HttpStatus.CONFLICT, "METER_REPLACE_AFTER_DAILY_SETTLEMENT",
+                    "当日日结已完成，无法执行换表/解绑结算，请次日再操作 roomId=" + roomId);
+        }
+
+        // 校验：finalReading ≥ 该绑定最新读数（无读数则 ≥ 绑定底数）
+        MeterReading latest = repo.findLatestBefore(roomId, meterType, now).orElse(null);
+        BigDecimal baseline = latest != null ? latest.getReadingValue() : binding.getInitialReading();
+        if (baseline == null) baseline = BigDecimal.ZERO;
+        if (finalReading.compareTo(baseline) < 0) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "METER_FINAL_READING_INVALID",
+                    "最终读数 " + finalReading + " 小于当前最新读数 " + baseline
+                            + " roomId=" + roomId + " meterType=" + meterType);
+        }
+
+        settleRoomInternal(roomId, today, binding, finalReading);
+
+        // 锚点读数：标记旧表结算边界（归属旧 binding，供后续审计与次日日结起始值）
+        repo.insertReading(roomId, binding.getId(), meterType, finalReading, now,
+                "MANUAL", "REPLACE_FINAL", null, null, null, operatorId);
     }
 
     public void createMeterPrice(Long storeId, String meterType, BigDecimal unitPrice,

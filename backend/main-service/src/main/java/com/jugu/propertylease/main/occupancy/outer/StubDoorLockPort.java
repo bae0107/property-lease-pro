@@ -17,8 +17,8 @@ public class StubDoorLockPort implements DoorLockPort {
     private static final Logger log = LoggerFactory.getLogger(StubDoorLockPort.class);
 
     @Override
-    public void issueCredential(Long tenantId, Long roomId, Long stayId) {
-        log.warn("[STUB-DOORLOCK] issueCredential: tenantId={} roomId={} stayId={}",
+    public void issueCredential(Long tenantId, Long roomId, Long stayId, String plainPassword) {
+        log.warn("[STUB-DOORLOCK] issueCredential: tenantId={} roomId={} stayId={} password=****",
                 tenantId, roomId, stayId);
     }
 

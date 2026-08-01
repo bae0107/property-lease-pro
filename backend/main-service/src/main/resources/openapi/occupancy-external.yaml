@@ -12,8 +12,36 @@ tags:
     description: 分配管理（STAFF 专属）
   - name: occupancy-stays
     description: 入住/退宿/换宿
+  - name: occupancy-my
+    description: 租客自助（小程序，仅 TENANT 用户）
 
 paths:
+
+  # ═══════════════════════════════════════════
+  # 租客自助（小程序）
+  # ═══════════════════════════════════════════
+
+  /occupancy/my/door-password:
+    get:
+      tags: [occupancy-my]
+      operationId: getMyDoorPassword
+      summary: 租客查询本人门锁密码（仅 TENANT）
+      description: |
+        无权限码，按 JWT userId 解析；仅 userType=TENANT 的用户可访问，其他类型返回 403。
+        返回该租客名下全部 ACTIVE 门锁密码（退宿/换宿后旧密码自动作废，不再返回）。
+      responses:
+        '200':
+          description: 查询成功（无在住记录时 items 为空）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoorPasswordResult'
+        '403':
+          description: 非 TENANT 用户
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
 
   # ═══════════════════════════════════════════
   # 分配管理
@@ -272,6 +300,33 @@ components:
         format: int64
 
   schemas:
+
+    DoorPasswordItem:
+      type: object
+      required: [stayId, roomId, password]
+      properties:
+        stayId:
+          type: integer
+          format: int64
+        roomId:
+          type: integer
+          format: int64
+        password:
+          type: string
+          description: 8 位数字明文密码
+        issuedAt:
+          type: string
+          format: date-time
+          description: 密码生成时间（入住/换宿时刻）
+
+    DoorPasswordResult:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DoorPasswordItem'
 
     AssignTenantRequest:
       type: object

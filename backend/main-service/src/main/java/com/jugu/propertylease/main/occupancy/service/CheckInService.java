@@ -12,7 +12,6 @@ import com.jugu.propertylease.main.jooq.tables.pojos.RoomAssignment;
 import com.jugu.propertylease.main.jooq.tables.pojos.Stay;
 import com.jugu.propertylease.main.metering.api.CollectReadingsCommand;
 import com.jugu.propertylease.main.metering.api.MeteringCommandPort;
-import com.jugu.propertylease.main.occupancy.outer.DoorLockPort;
 import com.jugu.propertylease.main.occupancy.repo.OccupancyRepository;
 import com.jugu.propertylease.main.propertymgr.api.AssetQueryPort;
 import org.springframework.http.HttpStatus;
@@ -34,8 +33,8 @@ import java.util.List;
  *   <li>创建 Stay(CHECKED_IN)</li>
  *   <li>MeteringCommandPort.collectCheckInReadings</li>
  *   <li>AccountingCommandPort.createPersonalDepositBill</li>
- *   <li>DoorLockPort.issueCredential</li>
  *   <li>回写 stay.iam_user_id（幂等复用 assignTenantToRoom 阶段已创建的 IAM 用户）</li>
+ *   <li>DoorCredentialService.issueForStay（生成门锁密码，加密落库并下发）</li>
  * </ol>
  */
 @Service
@@ -49,7 +48,7 @@ public class CheckInService {
     private final AssetQueryPort assetQueryPort;
     private final MeteringCommandPort meteringCommandPort;
     private final AccountingCommandPort accountingCommandPort;
-    private final DoorLockPort doorLockPort;
+    private final DoorCredentialService doorCredentialService;
     private final IamTenantPort iamTenantPort;
 
     public CheckInService(OccupancyRepository repo,
@@ -58,7 +57,7 @@ public class CheckInService {
                            AssetQueryPort assetQueryPort,
                            MeteringCommandPort meteringCommandPort,
                            AccountingCommandPort accountingCommandPort,
-                           DoorLockPort doorLockPort,
+                           DoorCredentialService doorCredentialService,
                            IamTenantPort iamTenantPort) {
         this.repo = repo;
         this.contractQueryPort = contractQueryPort;
@@ -66,7 +65,7 @@ public class CheckInService {
         this.assetQueryPort = assetQueryPort;
         this.meteringCommandPort = meteringCommandPort;
         this.accountingCommandPort = accountingCommandPort;
-        this.doorLockPort = doorLockPort;
+        this.doorCredentialService = doorCredentialService;
         this.iamTenantPort = iamTenantPort;
     }
 
@@ -118,15 +117,16 @@ public class CheckInService {
                 new PersonalDepositBillCommand(assignment.getTenantId(), stayId,
                         assignment.getContractId(), assignment.getRoomId()));
 
-        // 8. 门锁下发凭证
-        doorLockPort.issueCredential(assignment.getTenantId(), assignment.getRoomId(), stayId);
-
-        // 9. 回写 stay.iam_user_id
+        // 8. 回写 stay.iam_user_id
         //    assignTenantToRoom 阶段已调用 createOrEnableTenantUser 激活账号，但未落库其返回的 id；
         //    此处再次调用同一幂等接口以取回 iam_user.id 并写入 stay（接口文档明确保证幂等：已存在则直接返回）。
         CustomerEmployeeInfo employee = customerQueryPort.getEmployee(assignment.getTenantId());
         Long iamUserId = iamTenantPort.createOrEnableTenantUser(employee.mobile(), employee.name());
         repo.updateIamUserId(stayId, iamUserId);
+
+        // 9. 生成门锁密码（加密落库 ACTIVE + 下发），须在 iam_user_id 回写之后
+        doorCredentialService.issueForStay(stayId, assignment.getRoomId(),
+                assignment.getTenantId(), iamUserId);
 
         Stay stay = repo.findStayById(stayId).orElseThrow();
         return new CheckInResult(stay, depositBill.billId(), DEPOSIT_STATUS_PENDING_PAYMENT);

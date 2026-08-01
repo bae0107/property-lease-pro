@@ -52,6 +52,8 @@ class MeteringBindingsApiDelegateImpl implements MeteringBindingsApiDelegate {
                 req.getDeviceId(),
                 req.getMeterType().getValue(),
                 BigDecimal.valueOf(req.getInitialReading()),
+                req.getOldFinalReading() != null
+                        ? BigDecimal.valueOf(req.getOldFinalReading()) : null,
                 operatorId);
         return repo.findActiveBinding(roomId, req.getMeterType().getValue())
                 .map(this::toModel)
@@ -60,8 +62,10 @@ class MeteringBindingsApiDelegateImpl implements MeteringBindingsApiDelegate {
 
     @Override
     public com.jugu.propertylease.main.api.model.MeterDeviceBinding unbindDevice(
-            Long roomId, Long bindingId) {
-        svc.unbindDevice(roomId, bindingId);
+            Long roomId, Long bindingId, UnbindDeviceRequest req) {
+        Long operatorId = CurrentUser.getCurrentUserId();
+        svc.unbindDevice(roomId, bindingId,
+                BigDecimal.valueOf(req.getFinalReading()), operatorId);
         return repo.findAllBindings(roomId).stream()
                 .filter(b -> b.getId().equals(bindingId))
                 .map(this::toModel).findFirst().orElseThrow();

@@ -958,6 +958,8 @@
               </outputFile>
               <authPathPrefixes>
                 <authPathPrefix>/auth</authPathPrefix>
+                <!-- 租客自助端点：需登录 JWT 但无权限码，由 delegate 按 userType=TENANT 校验 -->
+                <authPathPrefix>/occupancy/my</authPathPrefix>
               </authPathPrefixes>
               <roleAdminCode>ROLE_IAM_ADMIN</roleAdminCode>
               <roleTenantCode>ROLE_TENANT</roleTenantCode>

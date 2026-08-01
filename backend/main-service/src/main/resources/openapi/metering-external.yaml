@@ -53,9 +53,14 @@ paths:
     post:
       tags: [metering-bindings]
       operationId: bindDevice
-      summary: 绑定/更换设备（自动关闭旧绑定版本）
+      summary: 绑定/更换设备（换表先做旧表期末结算，再关闭旧绑定开新绑定）
       description: |
-        - 若该房间该表类型已有 ACTIVE 绑定，先关闭（binding_end_at = now()）
+        - 若该房间该表类型已有 ACTIVE 绑定（换表场景）：
+          - oldFinalReading 必填，且不得小于旧表最新读数（无读数时不得小于底数）
+          - 先按旧表做期末结算（起始读数 → oldFinalReading 的用量 × 当日单价，复用日结分摊扣款，
+            写 room_daily_charge(date=今日) + tenant_apportionment，并落 anchorType=REPLACE_FINAL 锚点读数）
+          - 再关闭旧绑定（binding_end_at = now()）
+        - 若无 ACTIVE 绑定却传了 oldFinalReading → 400
         - 新建绑定版本，initial_reading = 新表当前读数
         - 更换设备不影响房间账户余额和历史流水
       x-required-permission: metering:binding:write
@@ -90,7 +95,12 @@ paths:
     put:
       tags: [metering-bindings]
       operationId: unbindDevice
-      summary: 解绑设备（关闭绑定版本）
+      summary: 解绑设备（先做旧表期末结算，再关闭绑定版本）
+      description: |
+        - finalReading 必填（旧表最终读数），且不得小于该绑定最新读数（无读数时不得小于底数）
+        - 先按旧表做期末结算（复用日结分摊扣款，写 room_daily_charge(date=今日)
+          + tenant_apportionment + anchorType=REPLACE_FINAL 锚点读数）
+        - 再关闭绑定版本（binding_end_at = now()）
       x-required-permission: metering:binding:write
       parameters:
         - name: roomId
@@ -105,6 +115,12 @@ paths:
           schema:
             type: integer
             format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnbindDeviceRequest'
       responses:
         '200':
           description: 解绑成功
@@ -112,6 +128,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MeterDeviceBinding'
+        '400':
+          description: 最终读数缺失或小于最新读数（METER_FINAL_READING_INVALID）
+          content:
+            application/json:
+              schema:
+                $ref: '../../../../../common/src/main/resources/openapi/common-components.yaml#/components/schemas/ErrorResponse'
 
   # ═══════════════════════════════════════════
   # 读数管理
@@ -283,6 +305,19 @@ components:
           type: number
           format: double
           description: 新表绑定时的当前读数（起始值）
+        oldFinalReading:
+          type: number
+          format: double
+          description: 换表场景必填：旧表最终读数（须 ≥ 旧表最新读数/底数）；无 ACTIVE 旧绑定时不得传
+
+    UnbindDeviceRequest:
+      type: object
+      required: [finalReading]
+      properties:
+        finalReading:
+          type: number
+          format: double
+          description: 旧表最终读数（须 ≥ 该绑定最新读数/底数）
 
     SubmitReadingRequest:
       type: object
