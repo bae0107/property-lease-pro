@@ -24,6 +24,7 @@ gateway:
   cors:
     allowed-origins:
       - http://localhost:3000
+      - http://127.0.0.1:3000
 
   # local 环境关闭限流，避免本地开发调试受干扰
   rate-limit:
