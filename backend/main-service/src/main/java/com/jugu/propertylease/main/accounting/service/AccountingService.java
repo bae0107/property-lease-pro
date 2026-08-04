@@ -5,7 +5,7 @@ import com.jugu.propertylease.main.accounting.api.model.*;
 import com.jugu.propertylease.main.accounting.outer.BillingServicePort;
 import com.jugu.propertylease.main.accounting.repo.*;
 import com.jugu.propertylease.main.accounting.repo.jooq.JooqAccountingRepository;
-import com.jugu.propertylease.main.contract.api.ContractCallbackPort;
+import com.jugu.propertylease.main.leasecontract.api.ContractCallbackPort;
 import com.jugu.propertylease.main.jooq.tables.pojos.Bill;
 import com.jugu.propertylease.main.jooq.tables.pojos.DepositLedger;
 import com.jugu.propertylease.main.jooq.tables.pojos.RoomAccount;

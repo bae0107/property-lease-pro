@@ -1,6 +1,6 @@
 package com.jugu.propertylease.main.schedule.service;
 
-import com.jugu.propertylease.main.contract.api.ContractScheduleTrigger;
+import com.jugu.propertylease.main.leasecontract.api.ContractScheduleTrigger;
 import com.jugu.propertylease.main.metering.api.MeteringScheduleTrigger;
 import com.jugu.propertylease.main.metering.api.DailySettlementResult;
 import org.slf4j.Logger;

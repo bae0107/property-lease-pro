@@ -21,7 +21,7 @@ import com.jugu.propertylease.main.iam.repo.UserRepository;
 import com.jugu.propertylease.main.iam.repo.UserRoleRepository;
 import com.jugu.propertylease.main.iam.repo.model.RoleTypeSnapshot;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
-import com.jugu.propertylease.main.propertymgr.api.AssetHierarchyQueryPort;
+import com.jugu.propertylease.main.assetmgr.api.AssetHierarchyQueryPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;

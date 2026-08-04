@@ -23,7 +23,7 @@ import com.jugu.propertylease.main.iam.repo.UserDataScopeRepository;
 import com.jugu.propertylease.main.iam.repo.UserRepository;
 import com.jugu.propertylease.main.iam.repo.UserRoleRepository;
 import com.jugu.propertylease.main.iam.repo.model.UserBaseInfo;
-import com.jugu.propertylease.main.propertymgr.api.AssetHierarchyQueryPort;
+import com.jugu.propertylease.main.assetmgr.api.AssetHierarchyQueryPort;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;

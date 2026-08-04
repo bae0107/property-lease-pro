@@ -12,7 +12,7 @@ import com.jugu.propertylease.main.accounting.api.model.PartialReturnCommand;
 import com.jugu.propertylease.main.accounting.outer.BillingServicePort;
 import com.jugu.propertylease.main.accounting.repo.OwnerArrears;
 import com.jugu.propertylease.main.accounting.repo.jooq.JooqAccountingRepository;
-import com.jugu.propertylease.main.contract.api.ContractCallbackPort;
+import com.jugu.propertylease.main.leasecontract.api.ContractCallbackPort;
 import com.jugu.propertylease.main.jooq.tables.pojos.RoomAccount;
 import com.jugu.propertylease.main.jooq.tables.pojos.RoomAccountSubBalance;
 import java.math.BigDecimal;

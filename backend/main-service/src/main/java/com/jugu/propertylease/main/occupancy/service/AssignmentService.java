@@ -1,13 +1,13 @@
 package com.jugu.propertylease.main.occupancy.service;
 
 import com.jugu.propertylease.common.exception.BusinessException;
-import com.jugu.propertylease.main.contract.api.ContractQueryPort;
+import com.jugu.propertylease.main.leasecontract.api.ContractQueryPort;
 import com.jugu.propertylease.main.customer.api.CustomerQueryPort;
 import com.jugu.propertylease.main.customer.api.model.CustomerEmployeeInfo;
 import com.jugu.propertylease.main.iam.api.IamTenantPort;
 import com.jugu.propertylease.main.jooq.tables.pojos.RoomAssignment;
 import com.jugu.propertylease.main.occupancy.repo.OccupancyRepository;
-import com.jugu.propertylease.main.propertymgr.api.AssetQueryPort;
+import com.jugu.propertylease.main.assetmgr.api.AssetQueryPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

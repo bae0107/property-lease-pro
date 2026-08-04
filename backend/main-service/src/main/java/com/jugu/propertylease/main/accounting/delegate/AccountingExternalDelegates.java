@@ -24,6 +24,7 @@ import com.jugu.propertylease.main.jooq.tables.pojos.Bill;
 import com.jugu.propertylease.main.jooq.tables.pojos.DepositLedger;
 import com.jugu.propertylease.main.jooq.tables.pojos.RoomAccount;
 import com.jugu.propertylease.main.jooq.tables.pojos.RoomAccountSubBalance;
+import com.jugu.propertylease.main.leasecontract.api.ContractQueryPort;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -150,10 +151,10 @@ class AccountingSubBalancesApiDelegateImpl implements AccountingSubBalancesApiDe
 class AccountingRechargeApiDelegateImpl implements AccountingRechargeApiDelegate {
 
     private final AccountingService svc;
-    private final com.jugu.propertylease.main.contract.api.ContractQueryPort contractQueryPort;
+    private final ContractQueryPort contractQueryPort;
 
     AccountingRechargeApiDelegateImpl(AccountingService svc,
-                                      com.jugu.propertylease.main.contract.api.ContractQueryPort contractQueryPort) {
+                                      ContractQueryPort contractQueryPort) {
         this.svc = svc;
         this.contractQueryPort = contractQueryPort;
     }
